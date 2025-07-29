@@ -34,7 +34,9 @@ incus list
 You will see an output similar to below.  There is nothing listed.  That makes sense because we haven't started any instances.  
 
 ```
-
++------+-------+------+------+------+-----------+
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
++------+-------+------+------+------+-----------+
 ```
 
 We'll start some instances in a minute.  Before that, let's look at the storage that is available to Incus.
@@ -84,18 +86,22 @@ oot@node1:~# incus network list
 You'll see something like this.  The list on your system will almost certainly look different because it includes all network interfaces on the host system, not just the Incus networks.
 
 ```
-+----------------+----------+---------+---------------+---------------------------+-------------+---------+---------+
-|      NAME      |   TYPE   | MANAGED |     IPV4      |           IPV6            | DESCRIPTION | USED BY |  STATE  |
-+----------------+----------+---------+---------------+---------------------------+-------------+---------+---------+
-| br-int         | bridge   | NO      |               |                           |             | 0       |         |
-+----------------+----------+---------+---------------+---------------------------+-------------+---------+---------+
-| eth0           | physical | NO      |               |                           |             | 0       |         |
-+----------------+----------+---------+---------------+---------------------------+-------------+---------+---------+
-| wlan0          | physical | NO      |               |                           |             | 0       |         |
-+----------------+----------+---------+---------------+---------------------------+-------------+---------+---------+
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+|   NAME   |   TYPE   | MANAGED |      IPV4      |           IPV6            | DESCRIPTION | USED BY |  STATE  |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+| eth0     | physical | NO      |                |                           |             | 0       |         |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+| eth1     | physical | NO      |                |                           |             | 0       |         |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+| incusbr0 | bridge   | YES     | 10.56.100.1/24 | fd42:bb5e:9914:7e7c::1/64 |             | 1       | CREATED |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+| lo       | loopback | NO      |                |                           |             | 0       |         |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
+| wlan0    | physical | NO      |                |                           |             | 0       |         |
++----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
 ```
+Notice the `incusbr0` network.  This is a network bridge created by Incus.  Your instances can attach to this network to get started.  You can get information about your storage pool in a similar way to how you got the network details.
 
-Notice the 'incusbr0' network.
 
 ```yaml
 config:
@@ -114,3 +120,5 @@ locations:
 - none
 project: default
 ```
+
+
