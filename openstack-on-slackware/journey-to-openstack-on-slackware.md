@@ -10,11 +10,8 @@ I will need to add these packages from the D disk set since Python and Perl are 
 
 ```
 perl-5.42.0-x86_64-1.txz
-
 python3-3.12.11-x86_64-1.txz
-
 python-setuptools-80.9.0-x86_64-1.txz
-
 python-pip-25.1.1-x86_64-1.txz
 ```
 
@@ -51,9 +48,6 @@ First, I'll make a list of all the passwords I will need for the various account
 | PLACEMENT_PASS     | Password of Placement service user placement    | openstack | 6eafd81693f885359d83282e6bedce76 |
 | RABBIT_PASS        | Password of RabbitMQ user openstack             | rabbitmq  | 62a319a0482bbb2775a1843925864fc8 |
 
-
-
-
 # Software Package Installation
 
 Now, I'll install a few pieces of software that aren't part
@@ -81,6 +75,7 @@ installpkg memcached-1.6.39-x86_64-1_SBo.txz
 #### rabbitmq
 
 RabbitMQ Server is used across various OpenStack components.
+
 ```bash
 installpkg otp_src-27.3.4.2-x86_64-1_SBo.txz
 installpkg elixir-1.18.4-x86_64-1_SBo.txz
@@ -90,7 +85,71 @@ installpkg rabbitmq-server-4.1.3-x86_64.txz
 ```
 
 #### mod_wsgi
+
 Mod_wsgi is compiled as an Apache module for WSGI.  This is used to serve APIs by various components on the controller.
+
 ```bash
 installpkg mod_wsgi-5.0.2-x86_64-1_SBo.txz
 ```
+
+#### OpenStack
+
+OpenStack has lots of dependences.  These can be installed from source or via `pip`.  I installed most of the packages from source using my own SlackBuilds scripts and then installed from `pip` when needed as my main focus is getting a functional OpenStack system.
+
+##### OpenStack Client
+
+Next, I need to install the OpenStack client.  This will be used for creating accounts once the Keystone identity service is online.
+
+```bash
+installpkg oslo_config-9.7.1-x86_64-1_SBo.txz oslo_i18n-6.5.1-x86_64-1_SBo.txz oslo_serialization-5.7.0-x86_64-1_SBo.txz oslo_utils-8.2.0-x86_64-1_SBo.txz stevedore-5.4.1-x86_64-1_SBo.txz wrapt-1.17.3-x86_64-1_SBo.txz debtcollector-3.0.0-x86_64-1_SBo.txz  python_keystoneclient-5.6.0-x86_64-1_SBo.txz netaddr-1.3.0-x86_64-1_SBo.txz keystoneauth1-5.10.0-x86_64-1_SBo.txz tzdata-2025.2-x86_64-1_SBo.txz pyiso8601-2.1.0-x86_64-1_SBo.txz rfc3986-2.0.0-x86_64-1_SBo.txz os_service_types-1.8.0-x86_64-1_SBo.txz typing_extensions-4.15.0-x86_64-1_SBo.txz python_keystoneclient-5.6.0-x86_64-1_SBo.txz autopage-0.5.2-x86_64-1_SBo.txz cmd2-2.7.0-x86_64-1_SBo.txz prettytable-3.16.0-x86_64-1_SBo.txz cliff-4.9.1-x86_64-1_SBo.txz cryptography-43.0.3-x86_64-1_SBo.txz dogpile.cache-1.4.0-x86_64-1_SBo.txz jmespath.py-1.0.1-x86_64-1_SBo.txz python-json-patch-1.33-x86_64-1_SBo.txz python-json-pointer-3.0.0-x86_64-1_SBo.txz platformdirs-4.3.8-x86_64-1_SBo.txz requestsexceptions-1.4.0-x86_64-1_SBo.txz sc-lib-3.2.0-x86_64-1_SBo.txz python-cinderclient-9.7.0-x86_64-1_SBo.txz openstacksdk-4.4.0-x86_64-1_SBo.txz
+# More packages
+installpkg python-cinderclient-9.7.0-x86_64-1_SBo.txz cliff-4.9.1-x86_64-1_SBo.txz python_keystoneclient-5.6.0-x86_64-1_SBo.txz typing_extensions-4.15.0-x86_64-1_SBo.txz os_service_types-1.8.0-x86_64-1_SBo.txz python_keystoneclient-5.6.0-x86_64-1_SBo.txz autopage-0.5.2-x86_64-1_SBo.txz  cmd2-2.7.0-x86_64-1_SBo.txz
+```
+
+I don't currently have a working version of msgpack or os-serivce-types, so I’ll install those from pip.
+
+```bash
+pip install msgpack
+pip install os-service-types
+```
+
+Finally I'll install the client.
+
+```bash
+installpkg python-openstackclient-7.5.0-x86_64-1_SBo.txz
+```
+
+At this point I can make sure any obvious dependencies are satisfied and verify basic client functionality.
+
+```text
+~ # pip check
+No broken requirements found.
+~ # openstack
+(openstack) quit
+```
+
+##### Keystone
+
+Now I'll install the Keystone packages.  Keystone is the OpenStack authentication service.
+
+I’ll have to install some OSLO libraries.  OSLO libraries are support libraries for various OpenStack components. 
+
+```bash
+installpkg oslo_cache-3.10.2-x86_64-1_SBo.txz oslo_context-5.7.1-x86_64-1_SBo.txz oslo_db-17.2.1-x86_64-1_SBo.txz oslo_log-7.1.0-x86_64-1_SBo.txz oslo_messaging-16.1.0-x86_64-1_SBo.txz oslo_middleware-6.3.1-x86_64-1_SBo.txz oslo_policy-4.5.1-x86_64-1_SBo.txz oslo_upgradecheck-2.5.0-x86_64-1_SBo.txz oslo_metrics-0.11.0-x86_64-1_SBo.txz oslo_service-4.1.1-x86_64-1_SBo.txz  oslo_concurrency-7.1.0-x86_64-1_SBo.txz
+```
+
+Those components require these packages.
+
+```bash
+installpkg alembic-1.16.4-x86_64-1_SBo.txz amqp-5.3.1-x86_64-1_SBo.txz  bcrypt-4.3.0-x86_64-1_SBo.txz cachetools-6.1.0-x86_64-1_SBo.txz futurist-3.2.0-x86_64-1_SBo.txz kombu-5.5.4-x86_64-1_SBo.txz sqlalchemy-2.0.43-x86_64-1_SBo.txz greenlet-3.2.4-x86_64-1_SBo.txz webob-1.8.9-x86_64-1_SBo.txz yappi-1.6.10-x86_64-1_SBo.txz testresources-2.0.2-x86_64-1_SBo.txz testscenarios-0.5.0-x86_64-1_SBo.txz pystatsd-4.0.1-x86_64-1_SBo.txz eventlet-0.40.2-x86_64-1_SBo.txz paste-3.10.1-x86_64-1_SBo.txz PasteDeploy-3.1.0-x86_64-1_SBo.txz Routes-2.5.1-x86_64-1_SBo.txz python-dateutil-2.9.0.post0-x86_64-1_SBo.txz vine-5.1.0-x86_64-1_SBo.txz testtools-2.7.2-x86_64-1_SBo.txz fasteners-0.20-x86_64-1_SBo.txz prometheus-client-0.22.1-x86_64-1_SBo.txz
+
+installpkg pyjwt-2.10.1-x86_64-1_SBo.txz pycadf-4.0.1-x86_64-1_SBo.txz keystonemiddleware-10.9.0-x86_64-1_SBo.txz aniso8601-10.0.1-x86_64-1_SBo.txz pytz-2025.2-x86_64-1_SBo.txz  pysaml2-7.5.2-x86_64-1_SBo.txz flask-3.1.2-x86_64-1_SBo.txz Flask-RESTful-0.3.10-x86_64-1_SBo.txz jsonschema-4.25.1-x86_64-1_SBo.txz oauthlib-3.3.1-x86_64-1_SBo.txz osprofiler-4.3.0-x86_64-1_SBo.txz py-scrypt-0.9.4-x86_64-1_SBo.txz keystone-27.0.0-x86_64-1_SBo.txz
+```
+
+After all that, the top of the Keyston install instructions note that pyasn1 is required.  Since I don't currently have a working package for that, I'll install it with pip.
+`pip install pyasn1`.
+
+In addition, from previous experience, there is a dependency of pymysql that `pip check` doesn't seem to find.  I don't currently have a package for this, so I'll install it with pip.
+`pip install pymysql`
+
+Now is a good time for another `pip check` to make sure there aren't any missing dependencies.
