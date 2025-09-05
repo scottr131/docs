@@ -108,6 +108,25 @@ OUTPUT=~/slackbuilds/packages/ PKGTYPE=txz BLDTHREADS=8 sudo ./usbredir.Slackbui
 wget --directory-prefix=usbredir $DOWNLOAD_x86_64
 ```
 
+### Configure SSH
+
+Ansible depends on SSH so I should get that configured first.  I'll start with the just the build/deploy node itself.  These commands are run as the `clusteradm` user.  With the first command I’ll create an ed25519 keypair.  The second command will add the public key into the authorized_keys file allowing `clusteradm` to SSH into the build/deploy node.
+
+```text
+clusteradm@build:~$ ssh-keygen -t ed25519
+clusteradm@build:~$ ssh-copy-id build
+/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "/home/clusteradm/.ssh/id_ed25519.pub"
+The authenticity of host 'deploy (::1)' can't be established.
+ED25519 key fingerprint is SHA256:Fqgm/8OZa/....
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+(clusteradm@build) Password:
+
+Number of key(s) added: 1
+```
+
 ### Prepare Ansible
 
 I’ll need to install Ansible on the build/deploy node. I don’t currently have a Slackbuild script for this, so I’ll install it from `pip`.  I'll ignore the warnings about running `pip` as root because I'm doing this intentionally to install Ansible as a system package.
@@ -123,23 +142,45 @@ cd ~
 git clone https://github.com/scottr131/ansible --depth=1
 ```
 
-### Configure SSH
+Then I'll move all the packages I built into the ansible/slackware/files directory.  This is where my Ansible playbooks look for them.
 
-Ansible depends on SSH so I should get that configured next.  I'll start with the just the build/deploy node itself.  These commands are run as the `clusteradm` user.  With the first command I’ll create an ed25519 keypair.  The second command will add the public key into the authorized_keys file allowing `clusteradm` to SSH into the build/deploy node.
+```bash
+mv ~/slackbuilds/*.txz ~/ansible/slackware/files/
+```
 
-```text
-clusteradm@build:~$ ssh-keygen -t ed25519
-clusteradm@build:~$ ssh-copy-id build
-/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "/home/clusteradm/.ssh/id_ed25519.pub"
-The authenticity of host 'deploy (::1)' can't be established.
-ED25519 key fingerprint is SHA256:Fqgm/8OZa/....
-This key is not known by any other names.
-Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
-/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
-/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
-(clusteradm@build) Password:
+I keep my rc and default configuration files in a separate repository than the Ansible playbooks.  I’ll clone that repository and then run this script to copy the rc and default configuration files to where my playbook expects them.  This assumes I cloned everything into the home directory of the clusteradm user.
 
-Number of key(s) added: 1
+```bash
+cd ~
+git clone https://github.com/scottr131/linux.git --depth=1
+#
+# The following script copies the rc and defaults
+# files to where the playbooks expect them
+#
+  for PBOOK in incus linstor ovn qemu local-config; do
+    mkdir -p $PBOOK/files/default  
+    mkdir -p $PBOOK/files/rc.d
+  done
+
+  cp ~/linux/slackware/etc/default/incus incus/files/default
+  cp ~/linux/slackware/etc/rc.d/rc.incusd incus/files/rc.d
+
+  cp ~/linux/slackware/etc/default/linstor-controller ~/linux/slackware/etc/default/linstor-satellite ~/linux/slackware/etc/default/zfs linstor/files/default
+  cp ~/linux/slackware/etc/rc.d/rc.drbd ~/linux/slackware/etc/rc.d/rc.linstor-controller ~/linux/slackware/etc/rc.d/rc.linstor-satellite ~/linux/slackware/etc/rc.d/rc.zfs linstor/files/rc.d
+
+  cp ~/linux/slackware/etc/default/openvswitch ~/linux/slackware/etc/default/ovn-central ~/linux/slackware/etc/default/ovn-host ovn/files/default
+  cp ~/linux/slackware/etc/rc.d/rc.openvswitch ~/linux/slackware/etc/rc.d/rc.ovn-central ~/linux/slackware/etc/rc.d/rc.ovn-host ovn/files/rc.d
+  
+  cp ~/linux/slackware/etc/rc.d/rc.local ~/linux/slackware/etc/rc.d/rc.local_shutdown local-config/files/rc.d
+```
+
+Now is a good time to perform a couple basic checks on Ansible to make sure it can connect and become root.
+```bash
+# This should return clusteradm
+ansible -i hosts.ini -a "whoami" nodes
+# This should return root
+# -b = become, -K = with sudo password
+ansible -i hosts.ini -a "whoami" nodes -b -K
 ```
 
 ## Deploy Standalone Incus
@@ -159,6 +200,7 @@ Now I can run Ansible playbooks against the build/deploy node.  I'll start by de
 ansible-playbook -i hosts.ini -b -K qemu/qemu-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
 ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
+
 ```
 
 
