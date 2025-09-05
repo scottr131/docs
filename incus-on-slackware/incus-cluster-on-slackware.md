@@ -428,18 +428,56 @@ Then I can run the `reload-config` command on rtr-vm to reload the configuration
 
 ## Build the Cluster Nodes
 
-Now I need to set up the three cluster nodes.  These three nodes will have their internal network interface (eth0) connected to the same switch as eth1 on the build/deploy node.  The router VM is up and running on this network, so these nodes can access the Internet through that router if needed for Slackware installation.  
+Now I need to set up the three cluster nodes.  These three nodes will have their internal network interface (eth0) connected to the same switch as eth1 on the build/deploy node.  The router VM is up and running on this network, so these nodes can access the Internet through that router if needed for Slackware installation.  DHCP is available for use during installation.  
 I’ll install Slackware64-current similar to how I did on the build/deploy node.  I’ll only install software sets A, AP, L, N, TCL, and X.  I’m not sure I’ll need X, but a minimal GUI on these systems may be useful later.  For these nodes, I won’t create a swap partition.  I think I would rather VMs and containers be killed due to out of memory than excessive swapping.  I’ll also make a small UEFI partition and a 32GB root partition.  I’ll configure eth0 on each node for the appropriate IP (as listed below) with the router VM as the gateway.
 
 | Hostname | Domain         | IP Address (eth0) |
-| :------- | :------------- | :---------------- |
-| rtr-vm   | cluster1.local |  172.31.254.1/24  |
+|:-------- |:-------------- |:----------------- |
+| rtr-vm   | cluster1.local | 172.31.254.1/24   |
 | deploy   | cluster1.local | 172.31.254.10/24  |
 | node4    | cluster1.local | 172.31.254.14/24  |
 | node5    | cluster1.local | 172.31.254.15/24  |
 | node6    | cluster1.local | 172.31.254.16/24  |
 
 | Service     | Value        |
-| :---------- | :----------- |
+|:----------- |:------------ |
 | Gateway     | 172.31.254.1 |
 | Primary DNS | 172.31.254.1 |
+
+## Set up name resolution
+
+I'll set up name resolution in two ways.  OpenWrt has an integrated dnsmasq DNS server available on `rtr-vm`.  However, that DNS server won’t be available until `rtr-vm` has started. I will configure the nodes in `/etc/hosts` so the names resolve early in cluster startup and even if something is pretty broken.  I’ll create a hosts file (on the build/deploy node at `/etc/hosts`) to reflect the cluster network I am building.  I'll start with this file just on the build/deploy node, but I can later use Ansible to update the cluster nodes as well.
+
+```text
+127.0.0.1               localhost
+::1                     localhost
+172.31.254.10           build.cluster1.local deploy
+172.31.254.14           node4.cluster1.local node1
+172.31.254.15           node5.cluster1.local node2
+172.31.254.16           node6.cluster1.local node3
+```
+
+In addition to the hosts file, I’ll go ahead and configure the DNS server on `rtr-vm`.  This can be done either at the `rtr-vm` console or via the OpenWrt web interface.  At the console, I can edit `/etc/config/dhcp`.  I’ll need to modify the `option domain` line for dnsmasq as well as adding a domain name entry for each node.
+
+```text
+config dnsmasq
+  ...
+        option domain 'cluster1.local'
+        ...
+config domain
+        option name 'node4'
+        option ip '172.31.254.14'
+
+config domain
+        option name 'node5'
+        option ip '172.31.254.15'
+
+config domain
+        option name 'node6'
+        option ip '172.31.254.16'
+```
+
+In the web interface, I can go to **Network > DHCP and DNS**.  On the **General** tab, I need to change the “Local domain” field to `cluster1.local`.
+![](cluster-domain-gui.png)
+Then I need to go over to the **DNS Records** tab.  There, I can click **Add** and create an entry for each node.  I’ll make sure to click **Save & Apply** after adding the entries to make sure they get saved.
+![](cluster-dns-gui.png)
