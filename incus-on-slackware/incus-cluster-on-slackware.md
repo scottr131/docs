@@ -74,7 +74,9 @@ BRNICS[1]="eth1"
 IPADDRS[1]="172.31.254.10/24"
 ...
 ```
+
 In addition, I'll need to set up the internal hostname for the cluster interface.  I'll add the following line to `/etc/hosts` and then restart the system to apply the changes.
+
 ```text
 172.31.254.10           build.cluster1.local
 ```
@@ -108,10 +110,10 @@ wget --directory-prefix=usbredir $DOWNLOAD_x86_64
 
 ### Prepare Ansible
 
-I’ll need to install Ansible on the build/deploy node. I don’t currently have a Slackbuild script for this, so I’ll install it from `pip`.
+I’ll need to install Ansible on the build/deploy node. I don’t currently have a Slackbuild script for this, so I’ll install it from `pip`.  I'll ignore the warnings about running `pip` as root because I'm doing this intentionally to install Ansible as a system package.
 
 ```bash
-pip install ansible
+sudo pip install ansible --root-user-action ignore
 ```
 
 Next I need to grab my Ansible playbooks from GitHub.
@@ -119,6 +121,25 @@ Next I need to grab my Ansible playbooks from GitHub.
 ```bash
 cd ~
 git clone https://github.com/scottr131/ansible --depth=1
+```
+
+### Configure SSH
+
+Ansible depends on SSH so I should get that configured next.  I'll start with the just the build/deploy node itself.  These commands are run as the `clusteradm` user.  With the first command I’ll create an ed25519 keypair.  The second command will add the public key into the authorized_keys file allowing `clusteradm` to SSH into the build/deploy node.
+
+```text
+clusteradm@build:~$ ssh-keygen -t ed25519
+clusteradm@build:~$ ssh-copy-id build
+/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "/home/clusteradm/.ssh/id_ed25519.pub"
+The authenticity of host 'deploy (::1)' can't be established.
+ED25519 key fingerprint is SHA256:Fqgm/8OZa/....
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+(clusteradm@build) Password:
+
+Number of key(s) added: 1
 ```
 
 ## Deploy Standalone Incus
@@ -139,4 +160,5 @@ ansible-playbook -i hosts.ini -b -K qemu/qemu-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
 ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
 ```
+
 
