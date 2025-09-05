@@ -125,18 +125,11 @@ git clone https://github.com/scottr131/ansible --depth=1
 
 Now I need to install Incus to the build/deploy node.  I'll do this so that I can have a standalone node I can use to transfer images and instances in to and out of the cluster.  Since I'll use Ansible to deploy the three main nodes, I might as well use it for deployment here too.
 
-I'll grab my Ansible playbooks from GitHub.
-
-```
-cd ~
-git clone https://github.com/scottr131/ansible --depth=1
-```
-
 I'll create a temporary `hosts.ini` with just the build/deploy node in it.  My Ansible playbooks are configured to deploy to a group called `nodes`. 
 
 ```ini
 [nodes]
-deploy.ic1.local
+build.cluster1.local
 ```
 
 Now I can run Ansible playbooks against the build/deploy node.  I'll start by deploying QEMU and Incus in order to be able to run VM instances.
