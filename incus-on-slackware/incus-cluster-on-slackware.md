@@ -27,6 +27,7 @@ First, I’ll start with the build/deploy node.  I’ll install Slackware64-curr
 ### Configure the user
 
 Logged in as root, I need to add a user account.  After I have a user account, I'll be able to access the build/deploy node via SSH.  I'll use `useradd` to add a user called `clusteradm` that will be used for Ansible and general cluster administration.  I’ll also add this user to `wheel` group which I later use to grant sudo access. 
+
 ```text
 root@deploy:~# useradd -d /home/clusteradm -g users -m -s /bin/bash clusteradm
 root@deploy:~# usermod -a -G wheel clusteradm
@@ -37,15 +38,48 @@ passwd: password updated successfully
 ```
 
 I need this user to have sudo access.  I do this by allowing the `wheel` group to have sudo access.  I'll run the `visudo` command to edit `/etc/sudoers`.  Around line 125, there is a template for allowing members of group wheel to execute any command.  I’ll uncomment that line to allow sudo access for the wheel group.
+
 ```text
 ## Uncomment to allow members of group wheel to execute any command
-# %wheel ALL=(ALL:ALL) ALL
+%wheel ALL=(ALL:ALL) ALL
 ```
 
 I can now log in as the `clusteradm` user for this rest of this document (unless otherwise noted).  I'll use this user for general cluster administration, and I'll also use it later for Ansible.
 
+### Configure Networking
+
+The build/deploy node has two network interfaces.  The internal ethernet interface (eth0) is connected to my local LAN and has DHCP enabled.  The second ethernet interface (eth1) is a USB ethernet adapter and will connect to cluster network.  The cluster nodes will be connected to the cluster network with their eth0 interface.
+
+> [!NOTE]
+> The network connections on the build/deploy node
+> and the compute nodes are “opposite.”  That is,
+> eth1 of the build/deploy node is connected to
+> the same switch as eth0 of the cluster nodes.
+
+I'll also want to create a bridge for each interface in case I want to attach VMs to them later.  In Slackware, this is done by editing `/etc/rc.d/rc.inet1.conf`.
+
+```
+...
+# These options are set for interface [0] and [1].
+# All other options are cleared.
+IFNAME[0]="lan-br"
+BRNICS[0]="eth0"
+USE_DHCP[0]="yes"
+IFNAME[1]="cluster-br"
+BRNICS[1]="eth1"
+IPADDRS[1]="172.31.254.10/24"
+...
+```
+
+> [!WARNING]
+> These changes won't take effect until the system
+> is restarted.  There are ways around this, but
+> I'll take the few seconds to reboot now.
+
 ### Build the software
+
 Now, I need to clone my repository of SlackBuilds.  This will give me scripts to build all the software needed for the Incus cluster.
+
 ```text
 clusteradm@deploy:~$ git clone https://github.com/scottr131/slackbuilds --depth=1
 Cloning into 'slackbuilds'...
@@ -58,8 +92,70 @@ Resolving deltas: 100% (36/36), done.
 ```
 
 An individual package can be built by changing into its directory and running the appropriate Slackbuild command.  SlackBuilds are meant to be run as root, hence the use of sudo.
+
 ```bash
 OUTPUT=~/slackbuilds/packages/ PKGTYPE=txz BLDTHREADS=8 sudo ./usbredir.Slackbuild
-
 wget --directory-prefix=usbredir $DOWNLOAD_x86_64
 ```
+
+### Prepare Ansible
+
+I’ll need to install Ansible on the build/deploy node. I don’t currently have a Slackbuild script for this, so I’ll install it from `pip`.
+
+```bash
+pip install ansible
+```
+
+Next I need to grab my Ansible playbooks from GitHub.
+
+```bash
+cd ~
+git clone https://github.com/scottr131/ansible --depth=1
+```
+
+## Deploy Standalone Incus
+
+Now I need to install Incus to the build/deploy node.  I'll do this so that I can have a standalone node I can use to transfer images and instances in to and out of the cluster.  Since I'll use Ansible to deploy the three main nodes, I might as well use it for deployment here too.
+
+I'll grab my Ansible playbooks from GitHub.
+
+```
+cd ~
+git clone https://github.com/scottr131/ansible --depth=1
+```
+
+I'll create a temporary `hosts.ini` with just the build/deploy node in it.  My Ansible playbooks are configured to deploy to a group called `nodes`. 
+
+```ini
+[nodes]
+deploy.ic1.local
+```
+
+Now I can run Ansible playbooks against the build/deploy node.  I'll start by deploying QEMU and Incus in order to be able to run VM instances.
+
+```bash
+ansible-playbook -i hosts.ini -b -K qemu/qemu-on-slackware.yaml
+ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
+ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
+```
+
+Before starting Incus for the first time, it's probably a good idea to set up networking on the build/deploy node.  The build/deploy node will be connected to the Internet via my LAN on eth0, and then will have a USB ethernet adapter as eth1 that will be connected to the cluster network.  I'll also want to create a bridge In Slackware, this is done by editing `/etc/rc.d/rc.inet1.conf`.
+
+```
+...
+# These options are set for interface [0] and [1].
+# All other options are cleared.
+IFNAME[0]="lan-br"
+BRNICS[0]="eth0"
+USE_DHCP[0]="yes"
+IFNAME[1]="cluster-br"
+BRNICS[1]="eth1"
+IPADDRS[1]="172.31.254.10/24"
+...
+```
+
+Once that is complete, I'll need to **reboot the build/deploy node**.  This allows two changes to take place.  My Incus playbook changes the CGroups version, and I just changed the networking configuration.  Both these changes will be effective on reboot.
+
+> [!TIP]
+> Check `/etc/udev/rules.d/70-persistent-net.rules` on Slackware
+> to see which physical interface is associated with each interface name.
