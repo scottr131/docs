@@ -451,17 +451,17 @@ I'll set up name resolution in two ways.  OpenWrt has an integrated dnsmasq DNS 
 ```text
 127.0.0.1               localhost
 ::1                     localhost
-172.31.254.10           build.cluster1.local deploy
-172.31.254.14           node4.cluster1.local node1
-172.31.254.15           node5.cluster1.local node2
-172.31.254.16           node6.cluster1.local node3
+172.31.254.10           build.cluster1.local build
+172.31.254.14           node4.cluster1.local node4
+172.31.254.15           node5.cluster1.local node5
+172.31.254.16           node6.cluster1.local node6
 ```
 
 In addition to the hosts file, I’ll go ahead and configure the DNS server on `rtr-vm`.  This can be done either at the `rtr-vm` console or via the OpenWrt web interface.  At the console, I can edit `/etc/config/dhcp`.  I’ll need to modify the `option domain` line for dnsmasq as well as adding a domain name entry for each node.
 
 ```text
 config dnsmasq
-  ...
+        ...
         option domain 'cluster1.local'
         ...
 config domain
@@ -529,5 +529,40 @@ sudo /etc/rc.d/rc.ntpd start
 ```
 
 > [!WARNING]
-> The ntpd configuration steps should be done ON ALL NODES!  
+> The ntpd configuration steps should be done ON ALL NODES!
 > This includes the build/deploy node and the three cluster nodes.
+
+## Set up SSH keys on cluster nodes
+
+Now I'm back on the build/deploy node.  I need to copy the clusteradm@build public key to each cluster node.  I'll start with node3.
+
+```
+clusteradm@build:~$ ssh-copy-id node4.cluster1.local
+/usr/bin/ssh-copy-id: INFO: Source of key(s) to be installed: "/home/clusteradm/.ssh/id_ed25519.pub"
+The authenticity of host 'node4.cluster1.local (172.31.254.14)' can't be established.
+ED25519 key fingerprint is SHA256:xKEzNwXwgGGWiUdAKRrEtnp9XzvHsv9N0b8l8ifPSv0.
+This key is not known by any other names.
+Are you sure you want to continue connecting (yes/no/[fingerprint])? yes
+/usr/bin/ssh-copy-id: INFO: attempting to log in with the new key(s), to filter out any that are already installed
+/usr/bin/ssh-copy-id: INFO: 1 key(s) remain to be installed -- if you are prompted now it is to install the new keys
+(clusteradm@node4.cluster1.local) Password:
+
+Number of key(s) added: 1
+
+Now try logging into the machine, with: "ssh 'node4.cluster1.local'"
+and check to make sure that only the key(s) you wanted were added.
+```
+
+Then, I need to repeat that for the other cluster nodes.
+
+```
+ssh-copy-id node5.cluster1.local
+ssh-copy-id node6.cluster1.local
+```
+
+Finally, I need to make sure that the `clusteradm` account has sudo access on each node.  Just as earlier on the build/deploy node, I'll login as a root user and run the `visudo` command to edit `/etc/sudoers`.  Around line 125, there is a template for allowing members of group wheel to execute any command.  I’ll uncomment that line to allow sudo access for the wheel group.
+
+```text
+## Uncomment to allow members of group wheel to execute any command
+%wheel ALL=(ALL:ALL) ALL
+```
