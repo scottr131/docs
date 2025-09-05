@@ -430,6 +430,7 @@ Then I can run the `reload-config` command on rtr-vm to reload the configuration
 
 Now I need to set up the three cluster nodes.  These three nodes will have their internal network interface (eth0) connected to the same switch as eth1 on the build/deploy node.  The router VM is up and running on this network, so these nodes can access the Internet through that router if needed for Slackware installation.  
 I’ll install Slackware64-current similar to how I did on the build/deploy node.  I’ll only install software sets A, AP, L, N, TCL, and X.  I’m not sure I’ll need X, but a minimal GUI on these systems may be useful later.  For these nodes, I won’t create a swap partition.  I think I would rather VMs and containers be killed due to out of memory than excessive swapping.  I’ll also make a small UEFI partition and a 32GB root partition.  I’ll configure eth0 on each node for the appropriate IP (as listed below) with the router VM as the gateway.
+
 | Hostname | Domain         | IP Address (eth0) |
 | :------- | :------------- | :---------------- |
 | rtr-vm   | cluster1.local |  172.31.254.1/24  |
@@ -438,6 +439,7 @@ I’ll install Slackware64-current similar to how I did on the build/deploy node
 | node5    | cluster1.local | 172.31.254.15/24  |
 | node6    | cluster1.local | 172.31.254.16/24  |
 
-| :---------- | :------------ |
-| Gateway     | 172.31.254.1  |
-| Primary DNS | 172.31.254.1  |
+| Service     | Value        |
+| :---------- | :----------- |
+| Gateway     | 172.31.254.1 |
+| Primary DNS | 172.31.254.1 |
