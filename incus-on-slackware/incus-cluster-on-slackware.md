@@ -153,6 +153,7 @@ I keep my rc and default configuration files in a separate repository than the A
 ```bash
 cd ~
 git clone https://github.com/scottr131/linux.git --depth=1
+cd ansible
 #
 # The following script copies the rc and defaults
 # files to where the playbooks expect them
@@ -170,11 +171,12 @@ git clone https://github.com/scottr131/linux.git --depth=1
 
   cp ~/linux/slackware/etc/default/openvswitch ~/linux/slackware/etc/default/ovn-central ~/linux/slackware/etc/default/ovn-host ovn/files/default
   cp ~/linux/slackware/etc/rc.d/rc.openvswitch ~/linux/slackware/etc/rc.d/rc.ovn-central ~/linux/slackware/etc/rc.d/rc.ovn-host ovn/files/rc.d
-  
+
   cp ~/linux/slackware/etc/rc.d/rc.local ~/linux/slackware/etc/rc.d/rc.local_shutdown local-config/files/rc.d
 ```
 
 Now is a good time to perform a couple basic checks on Ansible to make sure it can connect and become root.
+
 ```bash
 # This should return clusteradm
 ansible -i hosts.ini -a "whoami" nodes
@@ -200,7 +202,82 @@ Now I can run Ansible playbooks against the build/deploy node.  I'll start by de
 ansible-playbook -i hosts.ini -b -K qemu/qemu-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
 ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
-
 ```
+> [!WARNING]
+> The incus-on-slackware playbook changes the cgroups
+> version.  This will take effect when the system is
+> restarted.  Restart the system now!
+
+## Start a Minimal Incus System
+Incus is installed on the build/deploy node, but it's not yet configured or started.  Incus won't automatically start on the build/deploy node because the custom rc.local script isn't installed yet.  I'll fix this later.  For now, I'll start Incus manually and check its basic functionality.
+
+```bash
+# Enable and start Incus
+sudo chmod +x /etc/rc.d/rc.incusd
+sudo /etc/rc.d/rc.incusd start
+```
+
+I'll check that I see an Incus process running and check the log output.
+```text
+clusteradm@build:~$ ps -e | grep incusd
+ 1220 ?        00:00:00 incusd
+clusteradm@build:~$ sudo tail /var/log/incusd
+
+time="2025-09-04T23:48:13-04:00" level=warning msg="AppArmor support has been disabled because of lack of kernel support"
+time="2025-09-04T23:48:13-04:00" level=warning msg=" - AppArmor support has been disabled, Disabled because of lack of kernel support"
+time="2025-09-04T23:48:13-04:00" level=warning msg=" - Couldn't find the CGroup hugetlb controller, hugepage limits will be ignored"
+time="2025-09-04T23:48:13-04:00" level=warning msg=" - Couldn't find the CGroup memory swap accounting, swap limits will be ignored"
+```
+
+Since that looks good (only warnings), I'll create a minimal configuration and check to make sure it is working as expected.
+
+```bash
+# Create a minimal Incus configuration
+sudo incus admin init --minimal
+```
+
+
+## Configure Incus Access and Verify Functionality
+Right now, only root has Incus access.  Since I will be using the clusteradm account for general cluster administration, I want that account to have access to Incus.  I'll add the clusteradm account to the incus group - this will allow it to access the socket.  In addition, I'll add the account to the incus-admin group to give it full access to Incus. 
+```bash
+sudo usermod -a -G incus-admin clusteradm
+sudo usermod -a -G incus clusteradm
+```
+
+Now I'll do a couple checks to make sure Incus sees the networking and storage as expected.
+```text
+clusteradm@build:~$ incus list
++------+-------+------+------+------+-----------+
+| NAME | STATE | IPV4 | IPV6 | TYPE | SNAPSHOTS |
++------+-------+------+------+------+-----------+
+clusteradm@build:~$ incus storage list
++---------+--------+-------------+---------+---------+
+|  NAME   | DRIVER | DESCRIPTION | USED BY |  STATE  |
++---------+--------+-------------+---------+---------+
+| default | dir    |             | 1       | CREATED |
++---------+--------+-------------+---------+---------+
+clusteradm@build:~$ incus network list
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+|    NAME    |   TYPE   | MANAGED |      IPV4       |           IPV6            | DESCRIPTION | USED BY |  STATE  |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| cluster-br | bridge   | NO      |                 |                           |             | 0       |         |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| eth0       | physical | NO      |                 |                           |             | 0       |         |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| eth1       | physical | NO      |                 |                           |             | 0       |         |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| incusbr0   | bridge   | YES     | 10.203.150.1/24 | fd42:14a2:c537:7d84::1/64 |             | 1       | CREATED |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| lan-br     | bridge   | NO      |                 |                           |             | 0       |         |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+| lo         | loopback | NO      |                 |                           |             | 0       |         |
++------------+----------+---------+-----------------+---------------------------+-------------+---------+---------+
+clusteradm@build:~$
+```
+
+Incus appears to be working correctly.  Any errors here indicate a problem with permissions or the Incus daemon itself.  If I didn't see all the networks I expected, I would check the OS level networking configuration in /etc/rc.d/rc.inet1.conf first.  In this case, these are the results I expected to see.
+
+
+
 
 
