@@ -425,3 +425,19 @@ config rule
 I will also go ahead and configure the cluster network interface at this time too.  I could do this later from the web interface, but I think it makes sense to get it done now.  I'll edit `/etc/config/network` and update the `lan` interface definition with the correct IP address for the cluster LAN - 172.31.254.1.  By default, OpenWrt will run a DHCP server on this interface, and assign IPs .100 through .250 to DHCP clients.  This will be fine for now.
 
 Then I can run the `reload-config` command on rtr-vm to reload the configuration (and apply this new firewall rule).  At that point, I can use `ip a` to examine the network interfaces.  `eth1` has an IP address from my LAN, `eth0` exists, and `br-lan` has a static IP.   At this point, I have `eth0` of each node cluster connected to a switch along with `eth1` of the build/deploy node.  This switch has no connections to any other networks.  I can ping each cluster node from rtr-vm, and the cluster nodes have connectivity to the outside world through rtr-vm.  In this way rtr-vm can enforce firewall rules for traffic coming in to and out of the cluster network.  Due to the firewall rule I just added, the OpenWrt web interface is now available on my LAN (which is the WAN interface from OpenWrt's point of view).  If I forgot to set a password earlier, the web interface will remind me and I'll set a password now.
+
+## Build the Cluster Nodes
+
+Now I need to set up the three cluster nodes.  These three nodes will have their internal network interface (eth0) connected to the same switch as eth1 on the build/deploy node.  The router VM is up and running on this network, so these nodes can access the Internet through that router if needed for Slackware installation.  
+I’ll install Slackware64-current similar to how I did on the build/deploy node.  I’ll only install software sets A, AP, L, N, TCL, and X.  I’m not sure I’ll need X, but a minimal GUI on these systems may be useful later.  For these nodes, I won’t create a swap partition.  I think I would rather VMs and containers be killed due to out of memory than excessive swapping.  I’ll also make a small UEFI partition and a 32GB root partition.  I’ll configure eth0 on each node for the appropriate IP (as listed below) with the router VM as the gateway.
+| Hostname | Domain         | IP Address (eth0) |
+| :------- | :------------- | :---------------- |
+| rtr-vm   | cluster1.local |  172.31.254.1/24  |
+| deploy   | cluster1.local | 172.31.254.10/24  |
+| node4    | cluster1.local | 172.31.254.14/24  |
+| node5    | cluster1.local | 172.31.254.15/24  |
+| node6    | cluster1.local | 172.31.254.16/24  |
+
+| :---------- | :------------ |
+| Gateway     | 172.31.254.1  |
+| Primary DNS | 172.31.254.1  |
