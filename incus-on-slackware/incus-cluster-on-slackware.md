@@ -50,6 +50,10 @@ I can now log in as the `clusteradm` user for this rest of this document (unless
 
 The build/deploy node has two network interfaces.  The internal ethernet interface (eth0) is connected to my local LAN and has DHCP enabled.  The second ethernet interface (eth1) is a USB ethernet adapter and will connect to cluster network.  The cluster nodes will be connected to the cluster network with their eth0 interface.
 
+> [!TIP]
+> Check `/etc/udev/rules.d/70-persistent-net.rules` on Slackware
+> to see which physical interface is associated with each interface name.
+
 > [!NOTE]
 > The network connections on the build/deploy node
 > and the compute nodes are “opposite.”  That is,
@@ -69,6 +73,10 @@ IFNAME[1]="cluster-br"
 BRNICS[1]="eth1"
 IPADDRS[1]="172.31.254.10/24"
 ...
+```
+In addition, I'll need to set up the internal hostname for the cluster interface.  I'll add the following line to `/etc/hosts` and then restart the system to apply the changes.
+```text
+172.31.254.10           build.cluster1.local
 ```
 
 > [!WARNING]
@@ -139,23 +147,3 @@ ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
 ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
 ```
 
-Before starting Incus for the first time, it's probably a good idea to set up networking on the build/deploy node.  The build/deploy node will be connected to the Internet via my LAN on eth0, and then will have a USB ethernet adapter as eth1 that will be connected to the cluster network.  I'll also want to create a bridge In Slackware, this is done by editing `/etc/rc.d/rc.inet1.conf`.
-
-```
-...
-# These options are set for interface [0] and [1].
-# All other options are cleared.
-IFNAME[0]="lan-br"
-BRNICS[0]="eth0"
-USE_DHCP[0]="yes"
-IFNAME[1]="cluster-br"
-BRNICS[1]="eth1"
-IPADDRS[1]="172.31.254.10/24"
-...
-```
-
-Once that is complete, I'll need to **reboot the build/deploy node**.  This allows two changes to take place.  My Incus playbook changes the CGroups version, and I just changed the networking configuration.  Both these changes will be effective on reboot.
-
-> [!TIP]
-> Check `/etc/udev/rules.d/70-persistent-net.rules` on Slackware
-> to see which physical interface is associated with each interface name.
