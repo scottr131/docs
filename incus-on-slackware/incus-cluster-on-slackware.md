@@ -203,12 +203,14 @@ ansible-playbook -i hosts.ini -b -K qemu/qemu-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K incus/incus-groups.yml
 ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
 ```
+
 > [!WARNING]
 > The incus-on-slackware playbook changes the cgroups
 > version.  This will take effect when the system is
 > restarted.  Restart the system now!
 
 ## Start a Minimal Incus System
+
 Incus is installed on the build/deploy node, but it's not yet configured or started.  Incus won't automatically start on the build/deploy node because the custom rc.local script isn't installed yet.  I'll fix this later.  For now, I'll start Incus manually and check its basic functionality.
 
 ```bash
@@ -218,6 +220,7 @@ sudo /etc/rc.d/rc.incusd start
 ```
 
 I'll check that I see an Incus process running and check the log output.
+
 ```text
 clusteradm@build:~$ ps -e | grep incusd
  1220 ?        00:00:00 incusd
@@ -236,15 +239,17 @@ Since that looks good (only warnings), I'll create a minimal configuration and c
 sudo incus admin init --minimal
 ```
 
-
 ## Configure Incus Access and Verify Functionality
+
 Right now, only root has Incus access.  Since I will be using the clusteradm account for general cluster administration, I want that account to have access to Incus.  I'll add the clusteradm account to the incus group - this will allow it to access the socket.  In addition, I'll add the account to the incus-admin group to give it full access to Incus. 
+
 ```bash
 sudo usermod -a -G incus-admin clusteradm
 sudo usermod -a -G incus clusteradm
 ```
 
 Now I'll do a couple checks to make sure Incus sees the networking and storage as expected.
+
 ```text
 clusteradm@build:~$ incus list
 +------+-------+------+------+------+-----------+
@@ -277,7 +282,146 @@ clusteradm@build:~$
 
 Incus appears to be working correctly.  Any errors here indicate a problem with permissions or the Incus daemon itself.  If I didn't see all the networks I expected, I would check the OS level networking configuration in /etc/rc.d/rc.inet1.conf first.  In this case, these are the results I expected to see.
 
+## Deploy Cluster Router
 
+In the final configuration, I want to have a virtual OpenWrt router that will route all traffic in to and out of the cluster.  I'll go ahead and start setting that up now so that the cluster nodes can reach the Internet through it.
 
+I want to use an OpenWrt VM for this router.  I want to use a VM instead of a container so that it can be live migrated between cluster nodes later.  Since the available images are only container images, I'll need to build my own VM.
 
+```bash
+# Create a new profile from the default
+incus profile copy default rtr-vm
+# Set the profile to have 2 CPU cores a 1GB RAM
+incus profile set rtr-vm limits.cpu=2 limits.memory=1GiB
+# Set a 1GB root device
+incus profile device set rtr-vm root size=1GiB
+# Create a new VM based on that profile
+# and connected to both network bridges
+incus create rtr-vm --empty --vm -n cluster-br -p rtr-vm
+```
 
+The build/deploy node doesn't have a display attached, so now is a good time to connect a laptop with the Incus client to control Incus on the build/deploy node and later the cluster.  This isn't strictly needed but makes things much easier.  First, I'll need to enable the Incus API server on port 8443 and then generate a token for my laptop.
+
+```text
+~$ incus config set core.https_address=":8443"
+~$ incus config trust add laptop
+Client laptop certificate add token:
+eyJjbGllbnRfbmFtZSI6ImxhcHRvcCIsImZpbmdlcnByaW50IjoiMDhjNjcyYzc5NWI5MTYzMmQ4NjgzZDc4ZjZmNzY1OWZyMTZmZDY5OWEDNkNWM3OWVjNWY2YTVkYjZlZGQwYmVjOSIsImFkZHJlc3NlcyI6WyIxMC4xLjMxLjIyMDo4NDQzI3OWVjNWY2dr5sdfFfC4xMDo4NDQzIiwiMTAuMTAuMTY5LjE6ODQ0MyIsIltmZDQyOjI0OTc6YjEwNTo1YTc0OjoxXTo4NDQyMTZmZDY5OWECI6IjcyMTZmZDY5OWE1ODI0MTMxMTA3ODk1OGVjZjgyNDNkZGMyNTljYzg3MzU0MjZjZTlhYzU4NWIxOGI3ODUzMDIiLCJleHBpcmVzX2F0IjoiMDAwMS0wMS0wMVQwMDowMDowMFoifQ==
+```
+
+I'll copy that token over to my laptop and run this command (on the laptop) to add the build/deploy node as an Incus remote.  I'll also switch the default remote on the Incus client since I'll be working with the build/deploy node.
+
+```text
+user@laptop:~$ incus remote add deploy-incus deploy --token eyJjbGllbnRfbmFtZSI6ImxhcHRvcCIsImZpbmdlcnByaW50IjoiMDhjNjcyYzc5NWI5MTYzMmQ4NjgzZDc4ZjZmNzY1OWZyMTZmZDY5OWEDNkNWM3OWVjNWY2YTVkYjZlZGQwYmVjOSIsImFkZHJlc3NlcyI6WyIxMC4xLjMxLjIyMDo4NDQzI3OWVjNWY2dr5sdfFfC4xMDo4NDQzIiwiMTAuMTAuMTY5LjE6ODQ0MyIsIltmZDQyOjI0OTc6YjEwNTo1YTc0OjoxXTo4NDQyMTZmZDY5OWECI6IjcyMTZmZDY5OWE1ODI0MTMxMTA3ODk1OGVjZjgyNDNkZGMyNTljYzg3MzU0MjZjZTlhYzU4NWIxOGI3ODUzMDIiLCJleHBpcmVzX2F0IjoiMDAwMS0wMS0wMVQwMDowMDowMFoifQ==
+Certificate fingerprint: 08c672c795b91632d8683d78f5b916329fa045b916329ec5f6a5db6ed5b91632ec9
+ok (y/n/[fingerprint])? y
+Client certificate now trusted by server: deploy-incus
+user@laptop:~$ incus remote switch deploy-incus
+```
+
+Now, on my laptop, I'll upload the Slackware USB installer image that I used earlier to set up the nodes.  I plan to use that to install OpenWrt into the instance I just created.  It's not technically an ISO, but it will boot like one.  I also need to attach that storage volume to the router instance and set it to the highest boot priority.  Then, I'll start the VM with a VGA console.  I show my Linux based laptop in these examples, but the same commands also work on Windows or macOS.
+
+```text
+user@laptop:~$ incus storage volume import default usbboot.img slack-install --type=iso
+user@laptop:~$ incus storage volume attach default slack-install rtr-vm
+user@laptop:~$ incus config device set rtr-vm slack-install boot.priority=10
+user@laptop:~$ incus network attach lan-br rtr-vm eth1
+user@laptop:~$ incus start rtr-vm --console=vga
+```
+
+Once the Slackware installer starts up, I'll get to a root shell, get an IP address via DHCP from my LAN, set a root password (for this temporary installer session) and finally start the Dropbear SSH server so I can SSH into the installer to run these commands instead of typing them into the VGA console.
+
+```bash
+dhcpcd eth1
+passwd
+/etc/rc.d/rc.dropbear start
+```
+
+> [!NOTE]
+> Requesting an IP from eth1 is intentional.  The VM
+> has two network interfaces.  `eth0` is connected
+> to the cluster network, and I have temporarily connected
+> the `eth1` interface to the lan-br bridge (connecting
+> it to my LAN).
+
+Now I can SSH into the router VM (as `root`).  It will get its address via DHCP, I can view that with `ip a`.  Sometimes it takes a few seconds to obtain the IP.  I'll download the OpenWrt image to the /tmp folder, expand it, and write it out the root device.  Then I'll go ahead and expand the root partition.
+
+```bash
+cd /tmp
+wget https://downloads.openwrt.org/releases/24.10.2/targets/x86/64/openwrt-24.10.2-x86-64-generic-ext4-combined-efi.img.gz
+gunzip openwrt-24.10.2-x86-64-generic-ext4-combined-efi.img.gz
+dd if=openwrt-24.10.2-x86-64-generic-ext4-combined-efi.img of=/dev/sda status=progress
+```
+
+I can use fdisk to resize the partition.  Then I'll use resize2fs to expand the filesystem on that expanded partition.  At that point, I can shut the VM down to get it ready for first boot.
+
+```text
+root@darkstar:~# fdisk /dev/sda
+
+Welcome to fdisk (util-linux 2.41.1).
+Changes will remain in memory only, until you decide to write them.
+Be careful before using the write command.
+
+GPT PMBR size mismatch (246303 != 2097151) will be corrected by write.
+The backup GPT table is corrupt, but the primary appears OK, so that will be used.
+The backup GPT table is not on the end of the device. This problem will be corrected by write.
+
+Command (m for help): p
+
+Disk /dev/sda: 1 GiB, 1073741824 bytes, 2097152 sectors
+Disk model: QEMU HARDDISK
+Units: sectors of 1 * 512 = 512 bytes
+Sector size (logical/physical): 512 bytes / 512 bytes
+I/O size (minimum/optimal): 512 bytes / 512 bytes
+Disklabel type: gpt
+Disk identifier: CD0D3008-AE71-21D7-5617-D7010323E800
+
+Device      Start    End Sectors  Size Type
+/dev/sda1     512  33279   32768   16M Linux filesystem
+/dev/sda2   33280 246271  212992  104M Linux filesystem
+/dev/sda128    34    511     478  239K BIOS boot
+
+Partition table entries are not in disk order.
+
+Command (m for help): e
+Partition number (1,2,128, default 128): 2
+
+New <size>{K,M,G,T,P} in bytes or <size>S in sectors (default 1007.7M):
+
+Partition 2 has been resized.
+
+Command (m for help): w
+The partition table has been altered.
+Calling ioctl() to re-read partition table.
+Syncing disks.
+
+root@darkstar:~# resize2fs /dev/sda2
+resize2fs 1.47.3 (8-Jul-2025)
+Resizing the filesystem on /dev/sda2 to 257979 (4k) blocks.
+The filesystem on /dev/sda2 is now 257979 (4k) blocks long.
+
+root@darkstar:~# poweroff
+```
+
+Now I'll remove the Slackware installer USB and start the VM.  It should boot from the root storage device.
+
+```text
+incus config device remove rtr-vm slack-install
+incus start rtr-vm --console=vga
+```
+
+While I can configure everything from the config files, I'll allow HTTPS access to the OpenWrt web UI (LUCI).  This way I can configure the router via the web interface.  I can remove this access later by disabling this firewall rule.   In rtr-vm (the OpenWrt VM), I'll add this entry to /etc/config/firewall to open a port for the web interface. I will also set a root password with the `passwd` command since OpenWrt defaults to no password.  This password will also be used with the web interface.
+
+```text
+config rule
+        option name          Allow-HTTPS
+        option src           wan
+        option proto         tcp
+        option dest_port     443
+        option target        ACCEPT
+        option family        ipv4
+```
+
+I will also go ahead and configure the cluster network interface at this time too.  I could do this later from the web interface, but I think it makes sense to get it done now.  I'll edit `/etc/config/network` and update the `lan` interface definition with the correct IP address for the cluster LAN - 172.31.254.1.  By default, OpenWrt will run a DHCP server on this interface, and assign IPs .100 through .250 to DHCP clients.  This will be fine for now.
+
+Then I can run the `reload-config` command on rtr-vm to reload the configuration (and apply this new firewall rule).  At that point, I can use `ip a` to examine the network interfaces.  `eth1` has an IP address from my LAN, `eth0` exists, and `br-lan` has a static IP.   At this point, I have `eth0` of each node cluster connected to a switch along with `eth1` of the build/deploy node.  This switch has no connections to any other networks.  I can ping each cluster node from rtr-vm, and the cluster nodes have connectivity to the outside world through rtr-vm.  In this way rtr-vm can enforce firewall rules for traffic coming in to and out of the cluster network.  Due to the firewall rule I just added, the OpenWrt web interface is now available on my LAN (which is the WAN interface from OpenWrt's point of view).  If I forgot to set a password earlier, the web interface will remind me and I'll set a password now.
