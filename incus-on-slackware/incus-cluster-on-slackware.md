@@ -478,6 +478,56 @@ config domain
 ```
 
 In the web interface, I can go to **Network > DHCP and DNS**.  On the **General** tab, I need to change the “Local domain” field to `cluster1.local`.
+
 ![](cluster-domain-gui.png)
+
 Then I need to go over to the **DNS Records** tab.  There, I can click **Add** and create an entry for each node.  I’ll make sure to click **Save & Apply** after adding the entries to make sure they get saved.
+
 ![](cluster-dns-gui.png)
+
+## Configure NTP
+
+> [!CAUTION]
+> Time synchronization is very important in a cluster.
+> DO NOT SKIP THIS SECTION!  Your cluster will break
+> in weird ways.
+
+I plan to allow `rtr-vm` to sync from `pool.ntp.org` and then the cluster nodes will sync to `rtr-vm`.  This certainly won’t provide the most accurate time but should be sufficient for this cluster.  To do this from the console, I just need to edit `/etc/config/system` and add a line to enable the server.  By default, OpenWrt is already configured to get its time from pool.ntp.org. 
+
+```text
+config timeserver 'ntp'
+        option enable_server '1'
+        list server '0.openwrt.pool.ntp.org'
+        list server '1.openwrt.pool.ntp.org'
+        list server '2.openwrt.pool.ntp.org'
+        list server '3.openwrt.pool.ntp.org’
+```
+
+I can also do this from the OpenWrt web interface.  I can go to **System > System** and then select the **Time Synchronization** tab.  All I need to do is check the “Provide NTP server” box and click “Save & Apply”.
+
+![](cluster-ntp-gui.png)
+
+Now I need to configure each node to use `rtr-vm` as its time source.  This is something I could probably do through Ansible in the future, but for now, I’ll just do this manually to make sure time synchronization is working early in the process.  I’ll edit `/etc/ntp.conf` on **each** node and add an entry for the NTP server on `rtr-vm`.
+
+```text
+...
+server 172.31.254.1 iburst
+...
+```
+
+In addition, I will enable the NTP daemon, manually synchronize the time, and enable the NTP daemon **on each node**.
+
+```bash
+# Enable ntpd
+sudo chmod +x /etc/rc.d/rc.ntpd
+# Stop ntpd in case it was already running
+sudo /etc/rc.d/rc.ntpd stop
+# Sync time with rtr-vm
+sudo ntpdate 172.31.254.1
+# Start ntpd
+sudo /etc/rc.d/rc.ntpd start
+```
+
+> [!WARNING]
+> The ntpd configuration steps should be done ON ALL NODES!  
+> This includes the build/deploy node and the three cluster nodes.
