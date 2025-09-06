@@ -185,7 +185,7 @@ ansible -i hosts.ini -a "whoami" nodes
 ansible -i hosts.ini -a "whoami" nodes -b -K
 ```
 
-## Deploy Standalone Incus
+### Deploy Standalone Incus
 
 Now I need to install Incus to the build/deploy node.  I'll do this so that I can have a standalone node I can use to transfer images and instances in to and out of the cluster.  Since I'll use Ansible to deploy the three main nodes, I might as well use it for deployment here too.
 
@@ -209,7 +209,7 @@ ansible-playbook -i hosts.ini -b -K incus/incus-on-slackware.yaml
 > version.  This will take effect when the system is
 > restarted.  Restart the system now!
 
-## Start a Minimal Incus System
+### Start a Minimal Incus System
 
 Incus is installed on the build/deploy node, but it's not yet configured or started.  Incus won't automatically start on the build/deploy node because the custom rc.local script isn't installed yet.  I'll fix this later.  For now, I'll start Incus manually and check its basic functionality.
 
@@ -239,7 +239,7 @@ Since that looks good (only warnings), I'll create a minimal configuration and c
 sudo incus admin init --minimal
 ```
 
-## Configure Incus Access and Verify Functionality
+### Configure Incus Access and Verify Functionality
 
 Right now, only root has Incus access.  Since I will be using the clusteradm account for general cluster administration, I want that account to have access to Incus.  I'll add the clusteradm account to the incus group - this will allow it to access the socket.  In addition, I'll add the account to the incus-admin group to give it full access to Incus. 
 
@@ -282,7 +282,7 @@ clusteradm@build:~$
 
 Incus appears to be working correctly.  Any errors here indicate a problem with permissions or the Incus daemon itself.  If I didn't see all the networks I expected, I would check the OS level networking configuration in /etc/rc.d/rc.inet1.conf first.  In this case, these are the results I expected to see.
 
-## Deploy Cluster Router
+### Deploy Cluster Router
 
 In the final configuration, I want to have a virtual OpenWrt router that will route all traffic in to and out of the cluster.  I'll go ahead and start setting that up now so that the cluster nodes can reach the Internet through it.
 
@@ -426,7 +426,7 @@ I will also go ahead and configure the cluster network interface at this time to
 
 Then I can run the `reload-config` command on rtr-vm to reload the configuration (and apply this new firewall rule).  At that point, I can use `ip a` to examine the network interfaces.  `eth1` has an IP address from my LAN, `eth0` exists, and `br-lan` has a static IP.   At this point, I have `eth0` of each node cluster connected to a switch along with `eth1` of the build/deploy node.  This switch has no connections to any other networks.  I can ping each cluster node from rtr-vm, and the cluster nodes have connectivity to the outside world through rtr-vm.  In this way rtr-vm can enforce firewall rules for traffic coming in to and out of the cluster network.  Due to the firewall rule I just added, the OpenWrt web interface is now available on my LAN (which is the WAN interface from OpenWrt's point of view).  If I forgot to set a password earlier, the web interface will remind me and I'll set a password now.
 
-## Build the Cluster Nodes
+### Build the Cluster Nodes
 
 Now I need to set up the three cluster nodes.  These three nodes will have their internal network interface (eth0) connected to the same switch as eth1 on the build/deploy node.  The router VM is up and running on this network, so these nodes can access the Internet through that router if needed for Slackware installation.  DHCP is available for use during installation.  
 I’ll install Slackware64-current similar to how I did on the build/deploy node.  I’ll only install software sets A, AP, L, N, TCL, and X.  I’m not sure I’ll need X, but a minimal GUI on these systems may be useful later.  For these nodes, I won’t create a swap partition.  I think I would rather VMs and containers be killed due to out of memory than excessive swapping.  I’ll also make a small UEFI partition and a 32GB root partition.  I’ll configure eth0 on each node for the appropriate IP (as listed below) with the router VM as the gateway.
@@ -444,7 +444,7 @@ I’ll install Slackware64-current similar to how I did on the build/deploy node
 | Gateway     | 172.31.254.1 |
 | Primary DNS | 172.31.254.1 |
 
-## Set up Hostname Resolution
+### Set up Hostname Resolution
 
 I'll set up hostname resolution in two ways.  OpenWrt has an integrated dnsmasq DNS server available on `rtr-vm`.  However, that DNS server won’t be available until `rtr-vm` has started. I will configure the nodes in `/etc/hosts` so the names resolve early in cluster startup and even if something is pretty broken.  I’ll create a hosts file (on the build/deploy node at `/etc/hosts`) to reflect the cluster network I am building.  I'll start with this file just on the build/deploy node, but I can later use Ansible to update the cluster nodes as well.
 
@@ -485,7 +485,7 @@ Then I need to go over to the **DNS Records** tab.  There, I can click **Add** a
 
 ![](cluster-dns-gui.png)
 
-## Configure NTP
+### Configure NTP
 
 > [!CAUTION]
 > Time synchronization is very important in a cluster.
@@ -532,7 +532,7 @@ sudo /etc/rc.d/rc.ntpd start
 > The ntpd configuration steps should be done ON ALL NODES!
 > This includes the build/deploy node and the three cluster nodes.
 
-## Set up SSH Keys on Cluster Nodes
+### Set up SSH Keys on Cluster Nodes
 
 Now I'm back on the build/deploy node.  I need to copy the clusteradm@build public key to each cluster node.  I'll start with node3.
 
@@ -567,7 +567,7 @@ Finally, I need to make sure that the `clusteradm` account has sudo access on ea
 %wheel ALL=(ALL:ALL) ALL
 ```
 
-## Deploy with Ansible
+### Deploy with Ansible
 
 At this point, it should be time to use Ansible to deploy all the required packages to all three cluster nodes.  First, I'll make an updated version of my `hosts.ini`.  I'll add `ansible_python_interpreter` to each host to specify the specific Python interpreter.  This prevents a warning message from showing up on every Ansible run.  I'm also going to define a variable that contains an IP address for both the cluster and the OVN network interfaces of each host.  This will be used in the networking templates later.  Finally, I'll define a variable containing the default gateway for all nodes.
 
@@ -614,7 +614,7 @@ ansible-playbook -i hosts.ini -K linstor/linstor-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K ovn/ovn-on-slackware.yaml
 ```
 
-## Local Cluster Configuration Files
+### Local Cluster Configuration Files
 
 Now I need to install some configuration files that are customized for this cluster configuration.  This playbook mainly installs an rc.local file to start the services installed earlier if their rc file is marked as executable.
 
@@ -622,7 +622,7 @@ Now I need to install some configuration files that are customized for this clus
 ansible-playbook -i hosts.ini -b -K local-config/local-config.yaml
 ```
 
-## Host Level Network Configuration
+### Host Level Network Configuration
 
 Now we need to configure the network interfaces at the host level for each cluster node.  Each cluster node has two interfaces.  eth0 is the embedded physical interface and will be used for Incus and LINSTOR traffic.  This is connected to an internal bridge called cluster-br.  eth1 is a USB-attached network interface and will be used for OVN traffic.  This network will handle encapsulated traffic, so it should support jumbo frames otherwise the MTU will be reduced on the encapsulated link.  The USB network adapters and switch I'm using support jumbo frames, so I'll have to make sure that it is enabled later.  This configuration will be sufficient for now.   I'll apply an Ansible playbook that applies the desired network configuration to `/etc/rc.d/rc.inet1.conf` on each cluster node using templates.  The IP address for each hosts' cluster and ovn interfaces are defined in the inventory file.
 
@@ -635,7 +635,33 @@ Now we need to configure the network interfaces at the host level for each clust
 ansible-playbook -i hosts.ini -b -K local-config/cluster-net.yaml
 ```
 
-## Reboot the Cluster Nodes
+This is also a good time to distribute a hosts file so that the cluster nodes can resolve peer names before the cluster router is online.  I'll create a hosts file template similar to the hosts file I created earlier and then use Ansible to distribute the hosts file to all nodes.  I’ll create the template at `ansible/local-config/files/hosts.j2`
+
+```text
+127.0.0.1               localhost
+::1                     localhost
+127.0.0.1               {{ ansible_host }} {{ inventory_hostname }}
+::1                     {{ ansible_host }} {{ inventory_hostname }}
+172.31.254.10           build.cluster1.local build
+172.31.254.14           node4.cluster1.local node4
+172.31.254.15           node5.cluster1.local node5
+172.31.254.16           node6.cluster1.local node6
+```
+
+I'll also create a template at `ansible/local-config/files/HOSTNAME.j2`.  The template will simply create a file containing nothing but the desired hostname.
+
+```text
+{{ ansible_host }}
+```
+
+Then I can use my playbook to distribute this hosts file and HOSTNAME file to the three cluster nodes.  **This will overwrite any existing hosts file and change the hostname.**  This should be fine and will bring the nodes into a uniform configuration.  This could be useful if the hostnames were incorrectly configured during initial installation.
+
+```bash
+ansible-playbook -i hosts.ini -K local-config/hosts-file.yaml
+ansible-playbook -i hosts.ini -K local-config/update-hostname.yaml
+```
+
+### Reboot the Cluster Nodes
 
 At this point, I have made changes to the cgroup configuration, the networking configuration, and the system PATH.  I'll reboot the nodes so these changes can take effect.
 
@@ -643,7 +669,7 @@ At this point, I have made changes to the cgroup configuration, the networking c
 ansible -i hosts.ini -a "reboot" nodes -b -K
 ```
 
-## Verify Networking
+### Verify Networking
 
 Before proceeding, I'll use an ad-hoc command with Ansible to verify that the bridges came up with the correct interfaces assigned.  Make a note of the bridge id - if the MAC address is all zeroes, then the eth1 adapter is not being recognized.
 
@@ -673,7 +699,7 @@ ovn-br          8000.a0cec817c6ec       no              eth1.15
 uplink-br               8000.a0cec817c6ec       no              eth1
 ```
 
-## Enable and Start Storage and Networking
+### Enable and Start Storage and Networking
 
 Since I don't have this procedure fully refined, I'll use Ansible ad-hoc commands here.  It should probably become a playbook of its own.  My playbooks install all the services disabled.  I'll need to enable and start both DRBD and ZFS for use with LINSTOR.  I don't need to "start" these as there are currenly no DRBD devices or DRBD pools.
 
@@ -733,7 +759,7 @@ ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start-sbdb" nodes -b -K
 ansible -i hosts.ini -a "ovn-sbctl init" nodes -b -K
 ```
 
-## Start LINSTOR Cluster
+### Start LINSTOR Cluster
 
 Now, I'll get the LINSTOR cluster running across the three cluster nodes.  One node will be the initial controller.  I'll choose node4 and enable and bring up the container service there.  I'll run these commands **on node4** as the `clusteradm` user.
 
@@ -777,7 +803,7 @@ sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-
 sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfsthin node6.cluster1.local /dev/nvme0n1p3
 ```
 
-## Start OVN Cluster
+### Start OVN Cluster
 
 To configure the OVN cluster, I'll create three configuration files - one for each cluster node.  These are stored with the Ansible files under `local-config/hosts`. I'll point the nodes at node4 for the database for now.  I'll use IPs on the ovn-br to keep the intra-cluster traffic on that network.  This is also the network that will need jumbo frames for the encapsulation overhead.
 
@@ -901,3 +927,104 @@ ovs-vsctl set open_vswitch . \
    external_ids:ovn-encap-type=geneve \
    external_ids:ovn-encap-ip=tcp:172.29.2.16
 ```
+
+### Start Incus Cluster
+
+It’s finally time to start the Incus cluster for the first time.  I’ll start building the cluster on node4.  
+
+```bash
+sudo incus admin init
+```
+
+I'll accept most of the defaults, except I'll create the default storage pool as a dir (because I'll be adding LINSTOR, so I probably won't use the default pool)
+
+```text
+Would you like to use clustering? (yes/no) [default=no]: yes
+What IP address or DNS name should be used to reach this server? [default=172.31.254.14]:
+Are you joining an existing cluster? (yes/no) [default=no]:
+What member name should be used to identify this server in the cluster? [default=node4.cluster1.local]:
+Do you want to configure a new local storage pool? (yes/no) [default=yes]:
+Name of the storage backend to use (lvm, zfs, btrfs, dir) [default=zfs]: dir
+Where should this storage pool store its data? [default=/var/lib/incus/storage-pools/local]:
+Do you want to configure a new remote storage pool? (yes/no) [default=no]:
+Would you like to use an existing bridge or host interface? (yes/no) [default=no]:
+Would you like stale cached images to be updated automatically? (yes/no) [default=yes]:
+Would you like a YAML "init" preseed to be printed? (yes/no) [default=no]:
+```
+
+Now I’ll generate tokens for each node.  I’ll save these tokens as the nodes will ask for them when joining the cluster.
+
+```bash
+sudo incus cluster add node5.cluster1.local
+sudo incus cluster add node6.cluster1.local
+```
+
+Then, **on both node5 and node6**, I’ll join the cluster with `incus admin init`.
+
+```text
+Would you like to use clustering? (yes/no) [default=no]: yes
+What IP address or DNS name should be used to reach this server? [default=172.31.254.15]:
+Are you joining an existing cluster? (yes/no) [default=no]: yes
+Please provide join token: 
+All existing data is lost when joining a cluster, continue? (yes/no) [default=no] yes
+Choose "source" property for storage pool "local":
+Would you like a YAML "init" preseed to be printed? (yes/no) [default=no]:
+```
+
+### Connect LINSTOR to Incus
+
+First I'll verfify the LINSTOR storage pool is ready for use.
+
+```bash
+sudo linstor storage-pool list
+# This can be shortened to 'linstor sp l'
+```
+
+If the storage pool shows a size of zero, then something is wrong.  Usually that means the ZFS and/or DRBD modules aren't loaded or the zpools aren't imported.  With the storage pool operating correctly, I'll configure incus to connect to the LINSTOR controller
+
+```
+sudo incus config set storage.linstor.controller_connection=http://172.31.254.14:3370
+```
+
+I'll create the Incus storage pool called incus-pool, backed by the LINSTOR pool linstor-pool.
+
+```
+sudo incus storage create incus-pool linstor --target node4.cluster1.local
+sudo incus storage create incus-pool linstor --target node5.cluster1.local
+sudo incus storage create incus-pool linstor --target node6.cluster1.local
+sudo incus storage create incus-pool linstor linstor.resource_group.storage_pool=linstor-pool
+```
+
+Finally, I'll verify the LINSTOR resource group was created, and the Incus storage pool shows up.
+
+```
+sudo linstor resource-group list
+sudo incus storage list
+```
+
+### Connect OVN to Incus
+
+Next, Incus needs to be configured to connect to OVN northbound. Note the connection string below is the same as `ovn-northd-nb-db` in `/etc/default/ovn-central`.
+
+```bash
+sudo incus config set network.ovn.northbound_connection tcp:172.29.2.14:6641,tcp:172.29.2.15:6641,tcp:172.29.2.16:6641
+```
+
+### Connect Build/Deploy Node to Incus Cluster
+
+I want to be able to move images and instances between the build/deploy node and the cluster.  To do this, I'll add the cluster as a remote on the build/deploy node.  First, I need to add a trust for the deploy node. 
+
+```
+sudo incus config trust add build.cluster1.local
+```
+
+I'll save that token, and from the build/deploy node, I'll add the cluster as a remote.  I'll also switch to the cluster as  the default remote for the Incus client.
+
+```
+incus remote add cluster1 node4.cluster1.local --token <token>
+incus remote switch cluster1
+```
+
+I can't add the cluster to my laptop yet as the cluster network is completely isolated from the LAN my laptop is connected to.  The only reason the build/deploy node has access is because it has a physical connection to the cluster network.
+
+
