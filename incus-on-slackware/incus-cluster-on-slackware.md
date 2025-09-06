@@ -769,10 +769,135 @@ clusteradm@node1:~$ sudo linstor node list
 ╰────────────────────────────────────────────────────────────────────────╯
 ```
 
-Now I need to create a storage pool.  Since the term "storage pool" is used by ZFS, LINSTOR, and Incus, I'll name the pools accordingly to keep track of them.  These commands create a LINSTOR storage pool across all nodes called `linstor-pool` that is backed by a local ZFS pool on each node called `zfs-pool`.  LINSTOR will create the ZFS pool during the LINSTOR pool creation.  The ZFS pool will be created on the extra physical partition created when each node was set up (`/dev/nvme0n1p3` in this case).
+Now I need to create a storage pool.  Since the term "storage pool" is used by ZFS, LINSTOR, and Incus, I'll name the pools accordingly to keep track of them.  These commands create a LINSTOR storage pool across all nodes called `linstor-pool` that is backed by a local ZFS pool on each node called `zfs-pool`.  LINSTOR will create the ZFS pool during the LINSTOR pool creation.  The ZFS pool will be created on the extra physical partition created when each node was set up (`/dev/nvme0n1p3` in this case).  I'll specify a type of `zfs-thin` to indicate I want to use a ZFS pool with thin allocation.
 
 ```
-sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node4.cluster1.local /dev/nvme0n1p3
-sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node5.cluster1.local /dev/nvme0n1p3
-sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node6.cluster1.local /dev/nvme0n1p3
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfsthin node4.cluster1.local /dev/nvme0n1p3
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfsthin node5.cluster1.local /dev/nvme0n1p3
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfsthin node6.cluster1.local /dev/nvme0n1p3
+```
+
+## Start OVN Cluster
+
+To configure the OVN cluster, I'll create three configuration files - one for each cluster node.  These are stored with the Ansible files under `local-config/hosts`. I'll point the nodes at node4 for the database for now.  I'll use IPs on the ovn-br to keep the intra-cluster traffic on that network.  This is also the network that will need jumbo frames for the encapsulation overhead.
+
+ansible/local-config/hosts/node1/ovn-central
+
+```text
+OVN_CTL_OPTS="--ovn-nb-logfile=/var/log/ovn/ovsdb-server-nb.log \
+    --db-nb-pidfile=/var/run/ovn/ovnnb_db.pid \
+    --db-nb-sock=/var/run/ovn/ovnnb_db.sock \
+    --db-nb-ctrl-sock=/var/run/ovn/ovnnb_db.ctl \
+    --ovn-sb-logfile=/var/log/ovn/ovsdb-server-sb.log \
+    --db-sb-pidfile=/var/run/ovn/ovnsb_db.pid \
+    --db-sb-sock=/var/run/ovn/ovnsb_db.sock \
+    --db-sb-ctrl-sock=/var/run/ovn/ovnsb_db.ctl \
+    --db-nb-addr=172.29.2.11 \
+    --db-nb-create-insecure-remote=yes \
+    --db-sb-addr=172.29.2.11 \
+    --db-sb-create-insecure-remote=yes \
+    --db-nb-cluster-local-addr=172.29.2.11 \
+    --db-sb-cluster-local-addr=172.29.2.11 \
+    --ovn-northd-nb-db=tcp:172.29.2.11:6641,tcp:172.29.2.12:6641,tcp:172.29.2.13:6641 \
+    --ovn-northd-sb-db=tcp:172.29.2.11:6642,tcp:172.29.2.12:6642,tcp:172.29.2.13:6642"
+```
+
+ansible/local-config/hosts/node2/ovn-central
+
+```text
+OVN_CTL_OPTS="--ovn-nb-logfile=/var/log/ovn/ovsdb-server-nb.log \
+    --db-nb-pidfile=/var/run/ovn/ovnnb_db.pid \
+    --db-nb-sock=/var/run/ovn/ovnnb_db.sock \
+    --db-nb-ctrl-sock=/var/run/ovn/ovnnb_db.ctl \
+    --ovn-sb-logfile=/var/log/ovn/ovsdb-server-sb.log \
+    --db-sb-pidfile=/var/run/ovn/ovnsb_db.pid \
+    --db-sb-sock=/var/run/ovn/ovnsb_db.sock \
+    --db-sb-ctrl-sock=/var/run/ovn/ovnsb_db.ctl \
+    --db-nb-addr=172.29.2.12 \
+    --db-nb-cluster-remote-addr=172.29.2.11
+    --db-nb-create-insecure-remote=yes \
+    --db-sb-addr=172.29.2.12 \
+    --db-sb-cluster-remote-addr=172.29.2.11 \
+    --db-sb-create-insecure-remote=yes \
+    --db-nb-cluster-local-addr=172.29.2.12 \
+    --db-sb-cluster-local-addr=172.29.2.12 \
+    --ovn-northd-nb-db=tcp:172.29.2.11:6641,tcp:172.29.2.12:6641,tcp:172.29.2.13:6641 \
+    --ovn-northd-sb-db=tcp:172.29.2.11:6642,tcp:172.29.2.12:6642,tcp:172.29.2.13:6642"
+```
+
+ansible/local-config/hosts/node3/ovn-central
+
+```text
+OVN_CTL_OPTS="--ovn-nb-logfile=/var/log/ovn/ovsdb-server-nb.log \
+    --db-nb-pidfile=/var/run/ovn/ovnnb_db.pid \
+    --db-nb-sock=/var/run/ovn/ovnnb_db.sock \
+    --db-nb-ctrl-sock=/var/run/ovn/ovnnb_db.ctl \
+    --ovn-sb-logfile=/var/log/ovn/ovsdb-server-sb.log \
+    --db-sb-pidfile=/var/run/ovn/ovnsb_db.pid \
+    --db-sb-sock=/var/run/ovn/ovnsb_db.sock \
+    --db-sb-ctrl-sock=/var/run/ovn/ovnsb_db.ctl \
+    --db-nb-addr=172.29.2.13 \
+    --db-nb-cluster-remote-addr=172.29.2.11
+    --db-nb-create-insecure-remote=yes \
+    --db-sb-addr=172.29.2.13 \
+    --db-sb-cluster-remote-addr=172.29.2.11 \
+    --db-sb-create-insecure-remote=yes \
+    --db-nb-cluster-local-addr=172.29.2.13 \
+    --db-sb-cluster-local-addr=172.29.2.13 \
+    --ovn-northd-nb-db=tcp:172.29.2.11:6641,tcp:172.29.2.12:6641,tcp:172.29.2.13:6641 \
+    --ovn-northd-sb-db=tcp:172.29.2.11:6642,tcp:172.29.2.12:6642,tcp:172.29.2.13:6642"
+```
+
+Now I'll enable the OVN central and host services on ALL the nodes.  Then I'll make sure OVN central is stopped before making changes.
+
+```
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.ovn-central" nodes -b -K
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.ovn-host" nodes -b -K
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central stop" nodes -b -K
+```
+
+Then copy these files to the hosts using the local-config/ovn-cluster-config.yaml playbook.
+
+```
+ansible-playbook -i hosts.ini -K local-config/ovn-cluster-config.yaml
+```
+
+Now I need to start services on the primary node.  I chose this to be node4 earlier.
+
+```bash
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start" node4 -b -K
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-host start" node4 -b -K
+```
+
+Now I can start services on the other nodes, I just needed to make sure node4 started up first.  I'll just run the playbooks against all the nodes since it won't hurt anything to send the start command to node4 again.
+
+```bash
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start" nodes -b -K
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-host start" nodes -b -K
+```
+
+The Open vSwitch service on each node needs to be configured to talk to the OVN cluster.  This needs to be done on each node since the Open vSwitch instances on each node are independent of each other.  The `remote` string will match the `ovn-northd-sb-db` connection string from the OVN configuration.
+
+```bash
+# Node 4
+ovs-vsctl set open_vswitch . \
+   external_ids:ovn-remote=tcp:172.29.2.14:6642,tcp:172.29.2.15:6642,tcp:172.29.2.16:6642 \
+   external_ids:ovn-encap-type=geneve \
+   external_ids:ovn-encap-ip=tcp:172.29.2.14
+```
+
+```bash
+# Node 5
+ovs-vsctl set open_vswitch . \
+   external_ids:ovn-remote=tcp:172.29.2.14:6642,tcp:172.29.2.15:6642,tcp:172.29.2.16:6642 \
+   external_ids:ovn-encap-type=geneve \
+   external_ids:ovn-encap-ip=tcp:172.29.2.15
+```
+
+```bash
+# Node 6
+ovs-vsctl set open_vswitch . \
+   external_ids:ovn-remote=tcp:172.29.2.14:6642,tcp:172.29.2.15:6642,tcp:172.29.2.16:6642 \
+   external_ids:ovn-encap-type=geneve \
+   external_ids:ovn-encap-ip=tcp:172.29.2.16
 ```
