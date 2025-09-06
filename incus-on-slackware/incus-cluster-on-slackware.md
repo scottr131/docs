@@ -566,3 +566,171 @@ Finally, I need to make sure that the `clusteradm` account has sudo access on ea
 ## Uncomment to allow members of group wheel to execute any command
 %wheel ALL=(ALL:ALL) ALL
 ```
+
+## Deploy with Ansible
+
+At this point, it should be time to use Ansible to deploy all the required packages to all three cluster nodes.  First, I'll make an updated version of my `hosts.ini`.  I'll add `ansible_python_interpreter` to each host to specify the specific Python interpreter.  This prevents a warning message from showing up on every Ansible run.  I'm also going to define a variable that contains an IP address for both the cluster and the OVN network interfaces of each host.  This will be used in the networking templates later.  Finally, I'll define a variable containing the default gateway for all nodes.
+
+```
+[nodes]
+node4 ansible_python_interpreter=/usr/bin/python3 cluster_ip=172.31.254.14/24 ovn_ip=172.29.2.14/24 ansible_host=node4.cluster1.local
+node5 ansible_python_interpreter=/usr/bin/python3 cluster_ip=172.31.254.15/24 ovn_ip=172.29.2.15/24 ansible_host=node5.cluster1.local
+node6 ansible_python_interpreter=/usr/bin/python3 cluster_ip=172.31.254.16/24 ovn_ip=172.29.2.16/24 ansible_host=node6.cluster1.local
+
+[nodes:vars]
+cluster_gateway=172.31.254.1
+
+[build]
+build.cluster1.local
+```
+
+I'll do a final check on Ansible access to the cluster nodes.  First, I'll run an ad-hoc `whoami` command on each node, followed by running the same command as root.  I'll be prompted to provide the sudo password, which is the same for all nodes.
+
+```text
+clusteradm@build:~/ansible$ ansible -i hosts.ini -a "whoami" nodes
+node5 | CHANGED | rc=0 >>
+clusteradm
+node4 | CHANGED | rc=0 >>
+clusteradm
+node6 | CHANGED | rc=0 >>
+clusteradm
+clusteradm@build:~/ansible$ ansible -i hosts.ini -a "whoami" nodes -b -K
+BECOME password:
+node5 | CHANGED | rc=0 >>
+root
+node6 | CHANGED | rc=0 >>
+root
+node4 | CHANGED | rc=0 >>
+root
+```
+
+That looks good.  The clusteradm user can access each node and become root.  With that, I can deploy Qemu and Incus to the nodes by running the appropriate playbooks.
+
+```bash
+ansible-playbook -i hosts.ini -K qemu/qemu-on-slackware.yaml
+ansible-playbook -i hosts.ini -K incus/incus-groups.yml
+ansible-playbook -i hosts.ini -K incus/incus-on-slackware.yaml
+ansible-playbook -i hosts.ini -K linstor/linstor-on-slackware.yaml
+ansible-playbook -i hosts.ini -b -K ovn/ovn-on-slackware.yaml
+```
+
+## Local cluster configuration files
+
+Now I need to install some configuration files that are customized for this cluster configuration.  This playbook mainly installs an rc.local file to start the services installed earlier if their rc file is marked as executable.
+
+```bash
+ansible-playbook -i hosts.ini -b -K local-config/local-config.yaml
+```
+
+## Host level network configuration
+
+Now we need to configure the network interfaces at the host level for each cluster node.  Each cluster node has two interfaces.  eth0 is the embedded physical interface and will be used for Incus and LINSTOR traffic.  This is connected to an internal bridge called cluster-br.  eth1 is a USB-attached network interface and will be used for OVN traffic.  This network will handle encapsulated traffic, so it should support jumbo frames otherwise the MTU will be reduced on the encapsulated link.  The USB network adapters and switch I'm using support jumbo frames, so I'll have to make sure that it is enabled later.  This configuration will be sufficient for now.   I'll apply an Ansible playbook that applies the desired network configuration to `/etc/rc.d/rc.inet1.conf` on each cluster node using templates.  The IP address for each hosts' cluster and ovn interfaces are defined in the inventory file.
+
+> [!NOTE]
+> I have included my template file in the repository.  If you
+> try to recreate this, you may want to edit the template at
+> `ansible/local-config/files/rc.d/rc.inet1.conf.j2`.
+
+```bash
+ansible-playbook -i hosts.ini -b -K local-config/cluster-net.yaml
+```
+
+## Reboot the cluster nodes
+
+At this point, I have made changes to the cgroup configuration, the networking configuration, and the system PATH.  I'll reboot the nodes so these changes can take effect.
+
+```bash
+ansible -i hosts.ini -a "reboot" nodes -b -K
+```
+
+## Verify networking
+
+Before proceeding, I'll use an ad-hoc command with Ansible to verify that the bridges came up with the correct interfaces assigned.  Make a note of the bridge id - if the MAC address is all zeroes, then the eth1 adapter is not being recognized.
+
+```text
+clusteradm@build:~/ansible$ ansible -i hosts.ini -a "brctl show" nodes -b -K
+BECOME password:
+node5 | CHANGED | rc=0 >>
+bridge name     bridge id               STP enabled     interfaces
+client-br               8000.a0cec817c91e       no              eth1.10
+cluster-br              8000.6c4b90a8d384       no              eth0
+mgmt-br         8000.a0cec817c91e       no              eth1.20
+ovn-br          8000.a0cec817c91e       no              eth1.15
+uplink-br               8000.a0cec817c91e       no              eth1
+node4 | CHANGED | rc=0 >>
+bridge name     bridge id               STP enabled     interfaces
+client-br               8000.a0cec817cb68       no              eth1.10
+cluster-br              8000.6c4b90a8cfef       no              eth0
+mgmt-br         8000.a0cec817cb68       no              eth1.20
+ovn-br          8000.a0cec817cb68       no              eth1.15
+uplink-br               8000.a0cec817cb68       no              eth1
+node6 | CHANGED | rc=0 >>
+bridge name     bridge id               STP enabled     interfaces
+client-br               8000.a0cec817c6ec       no              eth1.10
+cluster-br              8000.6c4b90a8165f       no              eth0
+mgmt-br         8000.a0cec817c6ec       no              eth1.20
+ovn-br          8000.a0cec817c6ec       no              eth1.15
+uplink-br               8000.a0cec817c6ec       no              eth1
+```
+
+## Enable and Start Storage and Networking
+
+Since I don't have this procedure fully refined, I'll use Ansible ad-hoc commands here.  It should probably become a playbook of its own.  My playbooks install all the services disabled.  I'll need to enable and start both DRBD and ZFS for use with LINSTOR.  I don't need to "start" these as there are currenly no DRBD devices or DRBD pools.
+
+```bash
+# Enable the services
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.drbd" nodes -b -K
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.zfs" nodes -b -K
+```
+
+Now I'll get the LINSTOR system running.  
+
+```bash
+# Enable the LINSTOR satellite service
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.linstor-satellite /etc/rc.d/rc.drbd /etc/rc.d/rc.zfs" nodes -b -K
+# Make sure log directory exists, corrects a bug in my Slackbuild
+ansible -i hosts.ini -a "mkdir -p /var/log/linstor" nodes -b -K
+# Start the LINSTOR satellite on all cluster nodes
+ansible -i hosts.ini -a "/etc/rc.d/rc.linstor-satellite start" nodes -b -K
+```
+
+I'll check the log files to make sure this worked before proceeding.
+
+```bash
+ansible -i hosts.ini -a "tail /var/log/linstor/satellite" nodes
+```
+
+I'll create the config folders for OVS and OVN.  These should probably be created with the Slackbuild package.  This section can probably be removed with the package works right.
+
+```bash
+ansible -i hosts.ini -a "mkdir -p /etc/openvswitch" nodes -b -K
+ansible -i hosts.ini -a "mkdir -p /etc/ovn" nodes -b -K
+```
+
+I want to be sure I have a blank database created for OVS and OVN.  This may not be strictly necessary, but it certainly won't cause any problems to do at this point.
+
+```bash
+# Create OVS database
+ansible -i hosts.ini -a "ovsdb-tool create /etc/openvswitch/conf.db /usr/share/openvswitch/vswitch.ovsschema" nodes -b -K
+# Create OVN north bound database
+ansible -i hosts.ini -a "ovsdb-tool create /etc/ovn/ovnnb_db.db /usr/share/ovn/ovn-nb.ovsschema" nodes -b -K
+# Create OVN south bound database
+ansible -i hosts.ini -a "ovsdb-tool create /etc/ovn/ovnsb_db.db /usr/share/ovn/ovn-sb.ovsschema" nodes -b -K
+```
+
+Now I'll enable and start the services one by one and run the init command.  I'm not sure this is strictly necessary here, but I'm following the procedure outlined in the OVS and OVN installation from source instructions.
+
+```bash
+ansible -i hosts.ini -a "chmod +x /etc/rc.d/rc.openvswitch /etc/rc.d/rc.ovn-central" nodes -b -K
+
+ansible -i hosts.ini -a "/etc/rc.d/rc.openvswitch start" nodes -b -K
+ansible -i hosts.ini -a "ovs-vsctl --no-wait init" nodes -b -K
+
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start-nbdb" nodes -b -K
+ansible -i hosts.ini -a "ovn-nbctl --no-wait init" nodes -b -K
+
+ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start-sbdb" nodes -b -K
+ansible -i hosts.ini -a "ovn-sbctl init" nodes -b -K
+```
+
+
