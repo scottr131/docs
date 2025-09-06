@@ -444,9 +444,9 @@ I’ll install Slackware64-current similar to how I did on the build/deploy node
 | Gateway     | 172.31.254.1 |
 | Primary DNS | 172.31.254.1 |
 
-## Set up name resolution
+## Set up Hostname Resolution
 
-I'll set up name resolution in two ways.  OpenWrt has an integrated dnsmasq DNS server available on `rtr-vm`.  However, that DNS server won’t be available until `rtr-vm` has started. I will configure the nodes in `/etc/hosts` so the names resolve early in cluster startup and even if something is pretty broken.  I’ll create a hosts file (on the build/deploy node at `/etc/hosts`) to reflect the cluster network I am building.  I'll start with this file just on the build/deploy node, but I can later use Ansible to update the cluster nodes as well.
+I'll set up hostname resolution in two ways.  OpenWrt has an integrated dnsmasq DNS server available on `rtr-vm`.  However, that DNS server won’t be available until `rtr-vm` has started. I will configure the nodes in `/etc/hosts` so the names resolve early in cluster startup and even if something is pretty broken.  I’ll create a hosts file (on the build/deploy node at `/etc/hosts`) to reflect the cluster network I am building.  I'll start with this file just on the build/deploy node, but I can later use Ansible to update the cluster nodes as well.
 
 ```text
 127.0.0.1               localhost
@@ -532,7 +532,7 @@ sudo /etc/rc.d/rc.ntpd start
 > The ntpd configuration steps should be done ON ALL NODES!
 > This includes the build/deploy node and the three cluster nodes.
 
-## Set up SSH keys on cluster nodes
+## Set up SSH Keys on Cluster Nodes
 
 Now I'm back on the build/deploy node.  I need to copy the clusteradm@build public key to each cluster node.  I'll start with node3.
 
@@ -614,7 +614,7 @@ ansible-playbook -i hosts.ini -K linstor/linstor-on-slackware.yaml
 ansible-playbook -i hosts.ini -b -K ovn/ovn-on-slackware.yaml
 ```
 
-## Local cluster configuration files
+## Local Cluster Configuration Files
 
 Now I need to install some configuration files that are customized for this cluster configuration.  This playbook mainly installs an rc.local file to start the services installed earlier if their rc file is marked as executable.
 
@@ -622,7 +622,7 @@ Now I need to install some configuration files that are customized for this clus
 ansible-playbook -i hosts.ini -b -K local-config/local-config.yaml
 ```
 
-## Host level network configuration
+## Host Level Network Configuration
 
 Now we need to configure the network interfaces at the host level for each cluster node.  Each cluster node has two interfaces.  eth0 is the embedded physical interface and will be used for Incus and LINSTOR traffic.  This is connected to an internal bridge called cluster-br.  eth1 is a USB-attached network interface and will be used for OVN traffic.  This network will handle encapsulated traffic, so it should support jumbo frames otherwise the MTU will be reduced on the encapsulated link.  The USB network adapters and switch I'm using support jumbo frames, so I'll have to make sure that it is enabled later.  This configuration will be sufficient for now.   I'll apply an Ansible playbook that applies the desired network configuration to `/etc/rc.d/rc.inet1.conf` on each cluster node using templates.  The IP address for each hosts' cluster and ovn interfaces are defined in the inventory file.
 
@@ -635,7 +635,7 @@ Now we need to configure the network interfaces at the host level for each clust
 ansible-playbook -i hosts.ini -b -K local-config/cluster-net.yaml
 ```
 
-## Reboot the cluster nodes
+## Reboot the Cluster Nodes
 
 At this point, I have made changes to the cgroup configuration, the networking configuration, and the system PATH.  I'll reboot the nodes so these changes can take effect.
 
@@ -643,7 +643,7 @@ At this point, I have made changes to the cgroup configuration, the networking c
 ansible -i hosts.ini -a "reboot" nodes -b -K
 ```
 
-## Verify networking
+## Verify Networking
 
 Before proceeding, I'll use an ad-hoc command with Ansible to verify that the bridges came up with the correct interfaces assigned.  Make a note of the bridge id - if the MAC address is all zeroes, then the eth1 adapter is not being recognized.
 
@@ -733,4 +733,46 @@ ansible -i hosts.ini -a "/etc/rc.d/rc.ovn-central start-sbdb" nodes -b -K
 ansible -i hosts.ini -a "ovn-sbctl init" nodes -b -K
 ```
 
+## Start LINSTOR Cluster
 
+Now, I'll get the LINSTOR cluster running across the three cluster nodes.  One node will be the initial controller.  I'll choose node4 and enable and bring up the container service there.  I'll run these commands **on node4** as the `clusteradm` user.
+
+```
+sudo chmod +x /etc/rc.d/rc.linstor-controller
+sudo /etc/rc.d/rc.linstor-controller start
+```
+
+Now I can make sure the controller service is working by getting a node list.  Since I haven't added any nodes, this will be empty, but it won't show any errors.
+
+```
+sudo linstor node list
+```
+
+Next, I'll add the three cluster nodes to the LINSTOR cluster.  I'll add the first node as combined since it runs the controller.  After running each command, LINSTOR shows a success message and indicates all the storage providers available.
+
+```
+sudo linstor node create node4.cluster1.local 172.31.254.14 --node-type combined
+sudo linstor node create node5.cluster1.local 172.31.254.15 --node-type satellite
+sudo linstor node create node6.cluster1.local 172.31.254.16 --node-type satellite
+```
+
+After the nodes are added, I'll query LINSTOR to make sure everything is online.
+
+```text
+clusteradm@node1:~$ sudo linstor node list
+╭────────────────────────────────────────────────────────────────────────╮
+┊ Node                 ┊ NodeType  ┊ Addresses                  ┊ State  ┊
+╞════════════════════════════════════════════════════════════════════════╡
+┊ node4.cluster1.local ┊ COMBINED  ┊ 172.31.254.14:3366 (PLAIN) ┊ Online ┊
+┊ node5.cluster1.local ┊ SATELLITE ┊ 172.31.254.15:3366 (PLAIN) ┊ Online ┊
+┊ node6.cluster1.local ┊ SATELLITE ┊ 172.31.254.16:3366 (PLAIN) ┊ Online ┊
+╰────────────────────────────────────────────────────────────────────────╯
+```
+
+Now I need to create a storage pool.  Since the term "storage pool" is used by ZFS, LINSTOR, and Incus, I'll name the pools accordingly to keep track of them.  These commands create a LINSTOR storage pool across all nodes called `linstor-pool` that is backed by a local ZFS pool on each node called `zfs-pool`.  LINSTOR will create the ZFS pool during the LINSTOR pool creation.  The ZFS pool will be created on the extra physical partition created when each node was set up (`/dev/nvme0n1p3` in this case).
+
+```
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node4.cluster1.local /dev/nvme0n1p3
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node5.cluster1.local /dev/nvme0n1p3
+sudo linstor physical-storage create-device-pool --pool-name zfs-pool --storage-pool linstor-pool zfs node6.cluster1.local /dev/nvme0n1p3
+```
