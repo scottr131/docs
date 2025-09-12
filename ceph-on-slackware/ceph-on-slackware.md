@@ -194,7 +194,74 @@ chown ceph:ceph /etc/ceph/rbdmap
 ## Start the Monitor
 
 Manually start the monitor. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+
 ```bash
-/usr/bin/ceph-mon -c /etc/ceph/ceph.conf -i node4
+/usr/bin/ceph-mon -c /etc/ceph/ceph.conf -i node4 --setuser ceph --setgroup ceph
 ```
+
+## Verify the Functionality
+
+The ceph command can be used to query the status of the cluster.  At this point the single monitor node is technically a minimally functional Ceph cluster.  If the minimal cluster appears to be working it is safe to continue to add additional components to the cluster.
+
+```text
+root@node4:~# ceph -s
+  cluster:
+    id:     1ff986af-e0c2-4338-b219-cba29a19659d
+    health: HEALTH_WARN
+            mon is allowing insecure global_id reclaim
+            1 monitors have not enabled msgr2
+
+  services:
+    mon: 1 daemons, quorum node4 (age 2m) [leader: node4]
+    mgr: no daemons active
+    osd: 0 osds: 0 up, 0 in
+
+  data:
+    pools:   0 pools, 0 pgs
+    objects: 0 objects, 0 B
+    usage:   0 B used, 0 B / 0 B avail
+    pgs:
+```
+
+# Add a Manager
+
+This process will add a manager daemon to the single monitor node that makes up the cluster.  This process is also used to add additional managers to the cluster later. 
+
+## Create Manager Data Directory
+
+Similar to the monitor, the manager daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mgr. Create that directory and populate it.
+
+```bash
+mkdir -p /var/lib/ceph/mgr/ceph-node4
+chown -R ceph:ceph /var/lib/ceph
+sudo -u ceph ceph auth get-or-create mgr.node4 mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-node4/keyring
+```
+
+## Start the Manager
+
+Manually start the manager daemon. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+
+```bash
+/usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node4 --setuser ceph --setgroup ceph
+```
+
+## Verify the Functionality
+
+Like earlier, the ceph command can be used to query the status of the cluster.  The output should now show that node4 is the active manager node.
+
+```text
+root@node4:~# ceph -s
+  cluster:
+    id:     1ff986af-e0c2-4338-b219-cba29a19659d
+    health: HEALTH_WARN
+            mon is allowing insecure global_id reclaim
+            1 monitors have not enabled msgr2
+            OSD count 0 < osd_pool_default_size 3
+
+  services:
+    mon: 1 daemons, quorum node4 (age 2m) [leader: node4]
+    mgr: node4(active, since 21s)
+… continued …
+```
+
 
