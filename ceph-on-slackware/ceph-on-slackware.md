@@ -42,7 +42,7 @@ pip install scipy cherrypy jsonpatch python-dateutil cryptography
 For now, all the Ceph components are packaged up in a single Slackware package.  Therefore, this package can be used to deploy and type of Ceph node.  This may be split into packages for manager, monitor, OSD, etc.  
 
 ```bash
-installpkg ceph-20.1.0-x86_64-test2.txz
+Installpkg ceph-20.1.0-x86_64-test2.txz
 ```
 
 Ceph will need its own user.  Create a `ceph` group and add a `ceph` user.  In addition, there are some directories in `/etc` and `/var` that need created.  The directories in `/var` need to be owned by `ceph` since the daemons will be running as that user.
@@ -87,7 +87,7 @@ echo "mon_initial_members = node4" >> /etc/ceph/ceph.conf
 echo "mon_host = 172.31.254.14" >> /etc/ceph/ceph.conf
 ```
 
-### Create Cluster Keyring
+## Create Cluster Keyring
 
 This process creates a keyring for the cluster, generates a key for the monitor, and then specifies the capabilities of the monitor.  This will be shown as multiple steps first to make clear what is happening.  The multiple commands can then be combined into a single command for convenience.  These are created in `/tmp` as they will be imported into the initial monitor daemon later.
 
@@ -106,7 +106,7 @@ These commands can be combined into a single command.  You only need to run the 
 ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
 ```
 
-### Create Administrator Keyring
+## Create Administrator Keyring
 
 Next is a similar process for the administrator keyring.  This single command will create a keyring at `/etc/ceph/ceph.client.admin.keyring`, generate a new key for an entity called `client.admin`, set the UID of that entity to 0, and grant full capabilities on that entity.
 
@@ -114,27 +114,79 @@ Next is a similar process for the administrator keyring.  This single command wi
 ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --set-uid=0 --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow`
 ```
 
-Now this administrator keyring needs to be added to the cluster (monitor) keyring created earlier.
+## Create bootstrap-osd Keyring
+
+The bootstrap-osd keyring is used by the monitor to provision new OSDs.  First the directory is created.  Then a single command creates a new bootstrap-osd keyring at `/var/lib/ceph/bootstrap-osd/ceph.keyring`, generates a new key for an entity called `client.bootstrap-osd`, and grants some limited capabilities to the entity.
 
 ```bash
-ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+# Create the expected directory
+mkdir -p /var/lib/ceph/bootstrap-osd/ceph.keyring
+# Generate the keyring, new key, and grant capabilities
+ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
 ```
 
-### Generate Monitor Map
+## Merge Keyrings
+
+Now the administrator keyring and the bootstrap-osd keyring need to be added to the cluster (monitor) keyring created earlier.  Also make sure the keyring file is owned by the ceph user.
+
+```bash
+# Merge admin keyring
+ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
+# Merge bootstrap-osd keyring
+ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
+# Make sure keyring is owned by ceph
+chown ceph:ceph /tmp/ceph.mon.keyring
+```
+
+## Generate Monitor Map
 
 The monitor map contains a list of all the monitors in the cluster.  A new monitor map will need to be generated containing this single monitor node.  The node name, IP address, and fsid need to match the `/etc/ceph/ceph.conf` file generated earlier.  This initial monitor map is also generated in /tmp as it will be imported into the monitor daemon later.
 
 ```bash
-monmaptool --create –add node4 172.31.254.14 –fsid <from-conf-file> /tmp/monmap
+# This is run as ceph user so that user owns the file
+su – ceph monmaptool --create –add node4 172.31.254.14 –fsid <from-conf-file> /tmp/monmap
 ```
 
-### Create Monitor Data Directory
+## Create Monitor Data Directory
 
-The monitor daemon will store its data in a directory named after the cluster and monitor - `<cluster_name>-<monitor_host_name>`.  That directory is located under `/var/lib/ceph/mon`.  Create that directory and populate it.
+The monitor daemon will store its data in a directory named after the cluster and monitor - `<cluster_name>-<monitor_host_name>`.  That directory is located under `/var/lib/ceph/mon`.  Create that directory and populate it.  These operations are done as the ceph user to make sure filesystem permissions are correct.  Any permissions errors that occur here need to be resolved before proceeding.
 
 ```bash
-# Create the monitor’s data directory
-mkdir -p /var/lib/ceph/mon/ceph-node4
+# Create the monitor’s data directory (as the ceph user)
+su – ceph mkdir -p /var/lib/ceph/mon/ceph-node4
 # Populate the monitor daemon with the monitor map and keyring
-ceph-mon --mkfs -i node4 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+su – ceph ceph-mon --mkfs -i node4 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+```
+
+## Finalize Configuration File
+
+There are additional settings that can be configured in the configuration file.  At a minimum, it should look similar to this:
+
+```text
+[global]
+fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
+mon_initial_members = mon-node1
+mon_host = 192.168.0.1
+public_network = 192.168.0.0/24
+auth_cluster_required = cephx
+auth_service_required = cephx
+auth_client_required = cephx
+osd_pool_default_size = 3
+osd_pool_default_min_size = 2
+osd_pool_default_pg_num = 333
+osd_crush_chooseleaf_type = 1
+```
+
+## Verify File Permissions
+
+Since the various ceph components will run as the user `ceph` and not as `root` the various files just created need to be owned by ceph.  The easiest way to do this is to just reset the ownership information on all effected files.  
+
+```bash
+chown -R ceph:ceph /var/lib/ceph
+chown -R ceph:ceph /var/log/ceph
+chown -R ceph:ceph /var/run/ceph
+chown ceph:ceph /etc/ceph/ceph.client.admin.keyring
+chown ceph:ceph /etc/ceph/ceph.conf
+# From RH docs – what is rbdmap?
+chown ceph:ceph /etc/ceph/rbdmap
 ```
