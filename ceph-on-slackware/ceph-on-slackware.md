@@ -42,7 +42,7 @@ pip install scipy cherrypy jsonpatch python-dateutil cryptography
 For now, all the Ceph components are packaged up in a single Slackware package.  Therefore, this package can be used to deploy and type of Ceph node.  This may be split into packages for manager, monitor, OSD, etc.  
 
 ```bash
-Installpkg ceph-20.1.0-x86_64-test2.txz
+installpkg ceph-20.1.0-x86_64-test2.txz
 ```
 
 Ceph will need its own user.  Create a `ceph` group and add a `ceph` user.  In addition, there are some directories in `/etc` and `/var` that need created.  The directories in `/var` need to be owned by `ceph` since the daemons will be running as that user.
@@ -111,7 +111,7 @@ These commands can be combined into a single command.  You only need to run the 
 Next is a similar process for the administrator keyring.  This single command will create a keyring at `/etc/ceph/ceph.client.admin.keyring`, generate a new key for an entity called `client.admin`, and grant full capabilities on that entity.
 
 ```bash
-ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *'
+ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *' --cap mgr 'allow *'
 ```
 
 ## Create bootstrap-osd Keyring
@@ -119,10 +119,12 @@ ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n 
 The bootstrap-osd keyring is used by the monitor to provision new OSDs.  First the directory is created.  Then a single command creates a new bootstrap-osd keyring at `/var/lib/ceph/bootstrap-osd/ceph.keyring`, generates a new key for an entity called `client.bootstrap-osd`, and grants some limited capabilities to the entity.
 
 ```bash
-# Create the expected directory
+# Create the expected directory (may not be needed in 20.1)
 mkdir -p /var/lib/ceph/bootstrap-osd
 # Generate the keyring, new key, and grant capabilities
-ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
+ceph-authtool --create-keyring /etc/ceph/ceph.client.bootstrap-osd.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
+# Link to other location (may not be needed in 20.1)
+ln -s /etc/ceph/ceph.client.bootstrap-osd.keyring /var/lib/ceph/bootstrap-osd/ceph.keyring 
 ```
 
 ## Merge Keyrings
