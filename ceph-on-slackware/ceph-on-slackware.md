@@ -95,23 +95,23 @@ This process creates a keyring for the cluster, generates a key for the monitor,
 # Create the empty cluster keyring in the /tmp directory.
 ceph-authtool /tmp/ceph.mon.keyring --create-keyring
 # Generate a new key for the entity named `mon.`.
-ceph-authtool /tmp/ceph.mon.keyring –gen-key -n mon.
+ceph-authtool /tmp/ceph.mon.keyring -n mon. --gen-key 
 # Set the capabilities for `mon.`
-ceph-authtool /tmp/ceph.mon.keyring –cap mon ‘allow *’ -n mon.
+ceph-authtool /tmp/ceph.mon.keyring -n mon. --cap mon 'allow *'
 ```
 
 These commands can be combined into a single command.  You only need to run the previous commands or this command – not both.
 
 ```bash
-ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
+#ceph-authtool --create-keyring /tmp/ceph.mon.keyring --gen-key -n mon. --cap mon 'allow *'
 ```
 
 ## Create Administrator Keyring
 
-Next is a similar process for the administrator keyring.  This single command will create a keyring at `/etc/ceph/ceph.client.admin.keyring`, generate a new key for an entity called `client.admin`, set the UID of that entity to 0, and grant full capabilities on that entity.
+Next is a similar process for the administrator keyring.  This single command will create a keyring at `/etc/ceph/ceph.client.admin.keyring`, generate a new key for an entity called `client.admin`, and grant full capabilities on that entity.
 
 ```bash
-ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --set-uid=0 --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow`
+ceph-authtool --create-keyring /etc/ceph/ceph.client.admin.keyring --gen-key -n client.admin --cap mon 'allow *' --cap osd 'allow *' --cap mds 'allow *'
 ```
 
 ## Create bootstrap-osd Keyring
@@ -120,7 +120,7 @@ The bootstrap-osd keyring is used by the monitor to provision new OSDs.  First t
 
 ```bash
 # Create the expected directory
-mkdir -p /var/lib/ceph/bootstrap-osd/ceph.keyring
+mkdir -p /var/lib/ceph/bootstrap-osd
 # Generate the keyring, new key, and grant capabilities
 ceph-authtool --create-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
 ```
@@ -144,7 +144,7 @@ The monitor map contains a list of all the monitors in the cluster.  A new monit
 
 ```bash
 # This is run as ceph user so that user owns the file
-su – ceph monmaptool --create –add node4 172.31.254.14 –fsid <from-conf-file> /tmp/monmap
+sudo -u ceph monmaptool --create --add node4 172.31.254.14 --fsid 1ff986af-e0c2-4338-b219-cba29a19659d /tmp/monmap
 ```
 
 ## Create Monitor Data Directory
@@ -153,9 +153,9 @@ The monitor daemon will store its data in a directory named after the cluster an
 
 ```bash
 # Create the monitor’s data directory (as the ceph user)
-su – ceph mkdir -p /var/lib/ceph/mon/ceph-node4
+sudo -u ceph mkdir -p /var/lib/ceph/mon/ceph-node4
 # Populate the monitor daemon with the monitor map and keyring
-su – ceph ceph-mon --mkfs -i node4 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+sudo -u ceph ceph-mon --mkfs -i node4 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
 ```
 
 ## Finalize Configuration File
@@ -165,9 +165,9 @@ There are additional settings that can be configured in the configuration file. 
 ```text
 [global]
 fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
-mon_initial_members = mon-node1
-mon_host = 192.168.0.1
-public_network = 192.168.0.0/24
+mon_initial_members = node4
+mon_host = 172.31.254.14
+public_network = 172.31.254.0/24
 auth_cluster_required = cephx
 auth_service_required = cephx
 auth_client_required = cephx
@@ -190,3 +190,11 @@ chown ceph:ceph /etc/ceph/ceph.conf
 # From RH docs – what is rbdmap?
 chown ceph:ceph /etc/ceph/rbdmap
 ```
+
+## Start the Monitor
+
+Manually start the monitor. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+```bash
+/usr/bin/ceph-mon -c /etc/ceph/ceph.conf -i node4
+```
+
