@@ -34,7 +34,7 @@ installpkg rdma-core-59.0-x86_64-1_SBo.txz libnbd-1.22.4-x86_64-1_SBo.txz google
 There are some Python packages required that are not currently packaged as Slackware packages.  These will get packaged later.  For now, install these from `pip`.
 
 ```bash
-pip install scipy cherrypy jsonpatch python-dateutil cryptography
+pip install scipy cherrypy jsonpatch python-dateutil prettytable jmespath xmltodict pyOpenSSL
 ```
 
 ## Install Ceph and Create Directories and User
@@ -266,4 +266,149 @@ root@node4:~# ceph -s
 … continued …
 ```
 
+# Add a Manager
 
+This process will add a manager daemon to the single monitor node that makes up the cluster.  This process is also used to add additional managers to the cluster later. 
+
+## Create Manager Data Directory
+
+Similar to the monitor, the manager daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mgr. Create that directory and populate it.
+
+```bash
+mkdir -p /var/lib/ceph/mgr/ceph-node4
+chown -R ceph:ceph /var/lib/ceph
+sudo -u ceph ceph auth get-or-create mgr.node4 mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-node4/keyring
+```
+
+## Start the Manager
+
+Manually start the manager daemon. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+
+```bash
+/usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node4 --setuser ceph --setgroup ceph
+```
+
+## Verify the Functionality
+
+Like earlier, the ceph command can be used to query the status of the cluster.  The output should now show that node4 is the active manager node.
+
+```text
+root@node4:~# ceph -s
+  cluster:
+    id:     1ff986af-e0c2-4338-b219-cba29a19659d
+    health: HEALTH_WARN
+            mon is allowing insecure global_id reclaim
+            1 monitors have not enabled msgr2
+            OSD count 0 < osd_pool_default_size 3
+
+  services:
+    mon: 1 daemons, quorum node4 (age 2m) [leader: node4]
+    mgr: node4(active, since 21s)
+… continued …
+```
+
+## Create Users and Directories on Additional Monitor
+
+Ceph will need its own user.  Create a `ceph` group and add a `ceph` user.  In addition, there are some directories in `/etc` and `/var` that need created.  The directories in `/var` need to be owned by `ceph` since the daemons will be running as that user.
+
+```bash
+## Create Ceph user (ceph)
+groupadd -r ceph
+useradd --system -g ceph -c "Ceph" -m -d /home/ceph ceph
+# Create Ceph directories
+mkdir -p /etc/ceph
+mkdir -p /var/lib/ceph/bootstrap-osd
+mkdir -p /var/log/ceph
+mkdir -p /var/run/ceph
+# Make sure ceph user owns the /var directories
+chown -R ceph:ceph /var/lib/ceph
+chown -R ceph:ceph /var/log/ceph
+chown -R ceph:ceph /var/run/ceph
+```
+
+## Copy Cluster Configuration
+
+The configuration file, the cluster keyring, and the monmap need to be copied from the initial monitor to the new node.  In this example, the new node is node5.
+
+```bash
+# From node 3 as root
+scp /etc/ceph/* /tmp/ceph.mon.keyring /tmp/monmap clusteradm@node5:.
+```
+
+Since those files were just copied into the home directory of the clusteradm user, they will need moved to their appropriate locations.
+
+```
+mv /home/clusteradm/ceph.conf /etc/ceph/
+mv /home/clusteradm/ceph.client.admin.keyring /etc/ceph/
+mv /home/clusteradm/ceph.client.bootstrap-osd.keyring /etc/ceph/
+mv /home/clusteradm/ceph.mon.keyring /tmp
+mv /home/clusteradm/monmap /tmp
+chown ceph:ceph /tmp/monmap /tmp/ceph.mon.keyring
+chown -R ceph:ceph /etc/ceph
+```
+
+## Configure the Additional Monitor
+
+Now the monitor node is configured just like the first one was.  The references to `node4` get changed to `node5` resulting in these commands.
+
+```bash
+# Create the monitor’s data directory (as the ceph user)
+sudo -u ceph mkdir -p /var/lib/ceph/mon/ceph-node5
+# Populate the monitor daemon with the monitor map and keyring
+sudo -u ceph ceph-mon --mkfs -i node5 --monmap /tmp/monmap --keyring /tmp/ceph.mon.keyring
+```
+
+## Start the Additional Monitor
+
+Manually start the monitor. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+
+```bash
+/usr/bin/ceph-mon -c /etc/ceph/ceph.conf -i node5 --setuser ceph --setgroup ceph
+```
+
+## Create Additional Manager Data Directory
+
+Similar to the monitor, the manager daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mgr. Create that directory and populate it.  Additional managers are set up just like the first manager.
+
+```bash
+mkdir -p /var/lib/ceph/mgr/ceph-node5
+chown -R ceph:ceph /var/lib/ceph
+sudo -u ceph ceph auth get-or-create mgr.node5 mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-node5/keyring
+```
+
+## Start the Additional Manager
+
+Manually start the additional manager daemon. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
+
+```bash
+/usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node5 --setuser ceph --setgroup ceph
+```
+
+## Create an OSD
+
+```bash
+UUID=$(uuidgen)
+OSD_SECRET=$(ceph-authtool --gen-print-key)
+ID=$(echo "{\"cephx_secret\": \"$OSD_SECRET\"}" | \
+   ceph osd new $UUID -i - \
+   -n client.bootstrap-osd -k /etc/ceph/ceph.client.bootstrap-osd.keyring)
+echo $ID
+```
+
+Make the directory for the new OSD, make a filesystem on the device, and mount the device to the OSD folder.  This will need to be added to fstab.
+
+```bash
+mkdir -p  /var/lib/ceph/osd/ceph-$ID
+mkfs.xfs /dev/sda1
+mount /dev/sda1 /var/lib/ceph/osd/ceph-$ID
+ceph-authtool --create-keyring /var/lib/ceph/osd/ceph-$ID/keyring \
+     --name osd.$ID --add-key $OSD_SECRET
+ceph-osd -i $ID --mkfs --osd-uuid $UUID
+chown -R ceph:ceph /var/lib/ceph/osd/ceph-$ID
+```
+
+## Start the OSD
+
+```bash
+/usr/bin/ceph-osd -c /etc/ceph/ceph.conf -i $ID --setuser ceph --setgroup ceph 
+```
