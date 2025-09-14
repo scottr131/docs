@@ -34,7 +34,7 @@ installpkg rdma-core-59.0-x86_64-1_SBo.txz libnbd-1.22.4-x86_64-1_SBo.txz google
 There are some Python packages required that are not currently packaged as Slackware packages.  These will get packaged later.  For now, install these from `pip`.
 
 ```bash
-pip install scipy cherrypy jsonpatch python-dateutil prettytable jmespath xmltodict pyOpenSSL
+pip install scipy cherrypy jsonpatch python-dateutil prettytable jmespath xmltodict pyOpenSSL Routes
 ```
 
 ## Install Ceph and Create Directories and User
