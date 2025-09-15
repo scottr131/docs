@@ -189,8 +189,6 @@ chown -R ceph:ceph /var/log/ceph
 chown -R ceph:ceph /var/run/ceph
 chown ceph:ceph /etc/ceph/ceph.client.admin.keyring
 chown ceph:ceph /etc/ceph/ceph.conf
-# From RH docs – what is rbdmap?
-chown ceph:ceph /etc/ceph/rbdmap
 ```
 
 ## Start the Monitor
@@ -383,8 +381,8 @@ Manually start the additional manager daemon. This will be added to an rc file l
 ```bash
 /usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node5 --setuser ceph --setgroup ceph
 ```
-
-## Create an OSD
+## Add OSD
+### Create an OSD
 
 ```bash
 UUID=$(uuidgen)
@@ -407,8 +405,52 @@ ceph-osd -i $ID --mkfs --osd-uuid $UUID
 chown -R ceph:ceph /var/lib/ceph/osd/ceph-$ID
 ```
 
-## Start the OSD
+### Start the OSD
 
 ```bash
 /usr/bin/ceph-osd -c /etc/ceph/ceph.conf -i $ID --setuser ceph --setgroup ceph 
+```
+
+## Add MDS
+
+### Create MDS Data Directory
+
+The MDS daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mds. Create that directory and populate it.  Additional managers are set up just like the first manager.
+
+```bash
+mkdir -p /var/lib/ceph/mds/ceph-node5
+ceph-authtool --create-keyring /var/lib/ceph/mds/ceph-node5/keyring --gen-key -n mds.node5
+ceph auth add mds.{id} osd "allow rwx" mds "allow *" mon "allow profile mds" -i /var/lib/ceph/mds/ceph-node5/keyring
+chown -R ceph:ceph /var/lib/ceph
+```
+
+Edit ceph.conf and add MDS:
+
+```text
+[mds.node5]
+host = node5
+```
+
+### Start MDS daemon.
+
+```bash
+ceph-mds --cluster ceph -i node5 -m node5 [-f]
+```
+
+## Add RADOSGW
+
+### Create RADOSGW Data Directory
+
+The RADOSGW daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/radosgw. Create that directory and populate it.  Additional managers are set up just like the first manager.
+
+```bash
+mkdir -p /var/lib/ceph/radosgw/ceph-node4
+chown -R ceph:ceph /var/lib/ceph/radosgw
+sudo -u ceph ceph auth get-or-create client.node4 mon 'allow rw' osd 'allow rwx' -o /var/lib/ceph/radosgw/ceph-node4/keyring
+```
+
+### Start RADOSGW daemon.
+
+```bash
+radosgw -f --name client.node4 --setuser ceph --setgroup ceph
 ```
