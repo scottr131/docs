@@ -80,7 +80,7 @@ locations:
 We'll store the first instance in that pool.  Now, let's look at networks available to the instances.
 
 ```bash
-oot@node1:~# incus network list
+incus network list
 ```
 
 You'll see something like this.  The list on your system will almost certainly look different because it includes all network interfaces on the host system, not just the Incus networks.
@@ -100,8 +100,14 @@ You'll see something like this.  The list on your system will almost certainly l
 | wlan0    | physical | NO      |                |                           |             | 0       |         |
 +----------+----------+---------+----------------+---------------------------+-------------+---------+---------+
 ```
+
 Notice the `incusbr0` network.  This is a network bridge created by Incus.  Your instances can attach to this network to get started.  You can get information about your storage pool in a similar way to how you got the network details.
 
+```bash
+incus network show incusbr0
+```
+
+Incus will show the details of the network in YAML format.  When Incus created the network, it randomly chose a subnet for `ipv4.address`.  Yours will be different from the one below.,
 
 ```yaml
 config:

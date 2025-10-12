@@ -53,7 +53,7 @@ groupadd -r ceph
 useradd --system -g ceph -c "Ceph" -m -d /home/ceph ceph
 # Create Ceph directories
 mkdir -p /etc/ceph
-mkdir -p /var/lib/ceph/bootstrap-osd
+mkdir -p /var/lib/ceph
 mkdir -p /var/log/ceph
 mkdir -p /var/run/ceph
 # Make sure ceph user owns the /var directories
@@ -120,11 +120,11 @@ The bootstrap-osd keyring is used by the monitor to provision new OSDs.  First t
 
 ```bash
 # Create the expected directory (may not be needed in 20.1)
-mkdir -p /var/lib/ceph/bootstrap-osd
+#mkdir -p /var/lib/ceph/bootstrap-osd
 # Generate the keyring, new key, and grant capabilities
 ceph-authtool --create-keyring /etc/ceph/ceph.client.bootstrap-osd.keyring --gen-key -n client.bootstrap-osd --cap mon 'profile bootstrap-osd' --cap mgr 'allow r'
 # Link to other location (may not be needed in 20.1)
-ln -s /etc/ceph/ceph.client.bootstrap-osd.keyring /var/lib/ceph/bootstrap-osd/ceph.keyring 
+#ln -s /etc/ceph/ceph.client.bootstrap-osd.keyring /var/lib/ceph/bootstrap-osd/ceph.keyring 
 ```
 
 ## Merge Keyrings
@@ -135,7 +135,7 @@ Now the administrator keyring and the bootstrap-osd keyring need to be added to 
 # Merge admin keyring
 ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.admin.keyring
 # Merge bootstrap-osd keyring
-ceph-authtool /tmp/ceph.mon.keyring --import-keyring /var/lib/ceph/bootstrap-osd/ceph.keyring
+ceph-authtool /tmp/ceph.mon.keyring --import-keyring /etc/ceph/ceph.client.bootstrap-osd.keyring
 # Make sure keyring is owned by ceph
 chown ceph:ceph /tmp/ceph.mon.keyring
 ```
@@ -169,6 +169,7 @@ There are additional settings that can be configured in the configuration file. 
 fsid = a7f64266-0894-4f1e-a635-d0aeaca0e993
 mon_initial_members = node4
 mon_host = 172.31.254.14
+mon_allow_pool_delete = true
 public_network = 172.31.254.0/24
 auth_cluster_required = cephx
 auth_service_required = cephx
@@ -264,46 +265,7 @@ root@node4:~# ceph -s
 … continued …
 ```
 
-# Add a Manager
-
-This process will add a manager daemon to the single monitor node that makes up the cluster.  This process is also used to add additional managers to the cluster later. 
-
-## Create Manager Data Directory
-
-Similar to the monitor, the manager daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mgr. Create that directory and populate it.
-
-```bash
-mkdir -p /var/lib/ceph/mgr/ceph-node4
-chown -R ceph:ceph /var/lib/ceph
-sudo -u ceph ceph auth get-or-create mgr.node4 mon 'allow profile mgr' osd 'allow *' mds 'allow *' -o /var/lib/ceph/mgr/ceph-node4/keyring
-```
-
-## Start the Manager
-
-Manually start the manager daemon. This will be added to an rc file later.  Add a `-f` to keep the process running in the foreground.
-
-```bash
-/usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node4 --setuser ceph --setgroup ceph
-```
-
-## Verify the Functionality
-
-Like earlier, the ceph command can be used to query the status of the cluster.  The output should now show that node4 is the active manager node.
-
-```text
-root@node4:~# ceph -s
-  cluster:
-    id:     1ff986af-e0c2-4338-b219-cba29a19659d
-    health: HEALTH_WARN
-            mon is allowing insecure global_id reclaim
-            1 monitors have not enabled msgr2
-            OSD count 0 < osd_pool_default_size 3
-
-  services:
-    mon: 1 daemons, quorum node4 (age 2m) [leader: node4]
-    mgr: node4(active, since 21s)
-… continued …
-```
+# Add Another Monitor
 
 ## Create Users and Directories on Additional Monitor
 
@@ -315,7 +277,7 @@ groupadd -r ceph
 useradd --system -g ceph -c "Ceph" -m -d /home/ceph ceph
 # Create Ceph directories
 mkdir -p /etc/ceph
-mkdir -p /var/lib/ceph/bootstrap-osd
+mkdir -p /var/lib/ceph
 mkdir -p /var/log/ceph
 mkdir -p /var/run/ceph
 # Make sure ceph user owns the /var directories
@@ -364,6 +326,8 @@ Manually start the monitor. This will be added to an rc file later.  Add a `-f` 
 /usr/bin/ceph-mon -c /etc/ceph/ceph.conf -i node5 --setuser ceph --setgroup ceph
 ```
 
+# Add Another Manager
+
 ## Create Additional Manager Data Directory
 
 Similar to the monitor, the manager daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mgr. Create that directory and populate it.  Additional managers are set up just like the first manager.
@@ -381,7 +345,9 @@ Manually start the additional manager daemon. This will be added to an rc file l
 ```bash
 /usr/bin/ceph-mgr -c /etc/ceph/ceph.conf -i node5 --setuser ceph --setgroup ceph
 ```
+
 ## Add OSD
+
 ### Create an OSD
 
 ```bash
@@ -415,7 +381,7 @@ chown -R ceph:ceph /var/lib/ceph/osd/ceph-$ID
 
 ### Create MDS Data Directory
 
-The MDS daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mds. Create that directory and populate it.  Additional managers are set up just like the first manager.
+The MDS daemon will store its data in a directory named after the cluster and node - <cluster_name>-<host_name>. That directory is located under /var/lib/ceph/mds. Create that directory and populate it. 
 
 ```bash
 mkdir -p /var/lib/ceph/mds/ceph-node5

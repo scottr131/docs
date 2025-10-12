@@ -53,3 +53,10 @@ incus launch docker:busybox two
 ```
 
 
+
+```bash
+incus launch images:alpine/3.22 three --vm -c limits.cpu=1 -c limits.memory=1GiB -c security.secureboot=false
+incus launch docker:alpine:3.22 four
+```
+
+
