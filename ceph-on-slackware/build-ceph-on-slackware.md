@@ -21,6 +21,7 @@ sudo pip install tox
 ```
 
 #### pyo3 (with subinterpreters patch)
+
 Source: <https://github.com/PyO3/pyo3>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/pyo3-subint>
 Build time: 20 sec
@@ -29,12 +30,12 @@ This package provides Rust bindings in Python.  It is patched to allow its use i
 
 ```
 diff -ruN pyo3-0.26.0/Cargo.toml pyo3-0.26.0-patched/Cargo.toml
---- pyo3-0.26.0/Cargo.toml	2025-08-29 08:43:50.000000000 -0400
-+++ pyo3-0.26.0-patched/Cargo.toml	2025-09-13 15:05:13.285000000 -0400
+--- pyo3-0.26.0/Cargo.toml    2025-08-29 08:43:50.000000000 -0400
++++ pyo3-0.26.0-patched/Cargo.toml    2025-09-13 15:05:13.285000000 -0400
 @@ -141,6 +141,9 @@
  # Optimizes PyObject to Vec conversion and so on.
  nightly = []
- 
+
 +# Disables the checks for use in subinterpreters.  This is needed for bcrypt for Ceph.
 +unsafe-allow-subinterpreters = []
 +
@@ -42,15 +43,15 @@ diff -ruN pyo3-0.26.0/Cargo.toml pyo3-0.26.0-patched/Cargo.toml
  # This is mostly intended for testing purposes - activating *all* of these isn't particularly useful.
  full = [
 diff -ruN pyo3-0.26.0/src/impl_/pymodule.rs pyo3-0.26.0-patched/src/impl_/pymodule.rs
---- pyo3-0.26.0/src/impl_/pymodule.rs	2025-08-29 08:43:50.000000000 -0400
-+++ pyo3-0.26.0-patched/src/impl_/pymodule.rs	2025-09-13 15:06:51.833000000 -0400
+--- pyo3-0.26.0/src/impl_/pymodule.rs    2025-08-29 08:43:50.000000000 -0400
++++ pyo3-0.26.0-patched/src/impl_/pymodule.rs    2025-09-13 15:06:51.833000000 -0400
 @@ -100,7 +100,9 @@
          // that static data is not reused across interpreters.
          //
          // PyPy does not have subinterpreters, so no need to check interpreter ID.
 -        #[cfg(not(any(PyPy, GraalPy)))]
 +        // Also bypass this check if the feature is specifically enabled.  This is needed
-+        // for bcrypt for Ceph.	
++        // for bcrypt for Ceph.    
 +        #[cfg(not(any(PyPy, GraalPy, feature = "unsafe-allow-subinterpreters")))]
          {
              // PyInterpreterState_Get is only available on 3.9 and later, but is missing
@@ -60,9 +61,11 @@ diff -ruN pyo3-0.26.0/src/impl_/pymodule.rs pyo3-0.26.0-patched/src/impl_/pymodu
 Patch based on: <https://git.st8l.com/luxolus/pyo3/commit/338c71d0ad10f7ae38b7b44e576d49b91ed20d99>
 
 Apply patch:
+
 ```bash
 patch -p1 < $CWD/pyo3-0.26.0-subinterpreters.patch
 ```
+
 The patched pyo3 can then be built with *cargo*.
 
 ```bash
@@ -70,6 +73,7 @@ cargo build
 ```
 
 #### bcrypt (with subinterpreters patch)
+
 Source: <https://github.com/pyca/bcrypt/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/bcrypt-subint>
 Build time: 25 sec
@@ -83,6 +87,7 @@ pip install dist/*.whl --root=$PKG --root-user-action ignore
 ```
 
 #### cryptography (with subinterpreters patch)
+
 Source: <https://github.com/pyca/cryptography>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/cryptography-subint>
 Build time: 20 sec
@@ -97,24 +102,24 @@ pip install dist/*.whl --root=$PKG --root-user-action ignore
 ```
 
 ### Additional Python Packages
+
 Additional Python packages are needed for Ceph.  These are not currently built from source, but are install via `pip` instead.  These packages will need to be installed on the build system and on systems that will run a Ceph component.
 
 ```bash
 pip install scipy cherrypy jsonpatch python-dateutil prettytable jmespath xmltodict pyOpenSSL Routes
 ```
 
-
 ## Build the Ceph Prerequisites
 
-####
+#### 
+
 Source: <>
 SlackBuild: <>
 
 This package provides the # library.  **#** uses a typical *cmake* build process.
 
-
-
 #### rdma-core
+
 Source: <https://github.com/linux-rdma/rdma-core>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rdma-core>
 Build time: 4 min
@@ -136,7 +141,9 @@ cmake \
 
 make install DESTDIR=$PKG
 ```
+
 #### libnbd
+
 Source: <https://download.libguestfs.org/libnbd/1.22-stable/>
 SlackBuild: https://github.com/scottr131/slackbuilds/tree/main/libnbd
 Build time: 20 sec
@@ -161,7 +168,9 @@ CXXFLAGS="$SLKCFLAGS" \
 make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
+
 #### googletest
+
 Source: <https://github.com/google/googletest>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/googletest>
 Build time: 20 sec
@@ -186,7 +195,9 @@ CXXFLAGS="$SLKCFLAGS" \
 make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
+
 #### benchmark
+
 Source: <https://github.com/google/benchmark>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/benchmark>
 Build time: 1 min
@@ -212,13 +223,16 @@ CXXFLAGS="$SLKCFLAGS" \
 make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
+
 In addition, include a copy of the source files at /usr/src.  This may not be necessary and may be removed in the future, but may be useful during testing and debugging.
+
 ```bash
 mkdir -p $PKG/usr/src/google-benchmark
 cp -R * $PKG/usr/src/google-benchmark/
 ```
 
 #### snappy
+
 Source: <https://github.com/google/snappy>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/snappy-rtti>
 Build time: 30 sec
@@ -226,10 +240,11 @@ Build time: 30 sec
 This package provides the Snappy compression library from Google.  It is used by Ceph.  **snappy** needs to be built with RTTI support for Ceph and requires a patch to enable this.  After the patch, **snappy** uses a typical *cmake* build process.
 
 The patch below removes the lines from the cmake configuration that disable RTTI.  This may change.
+
 ```diff
 diff --unified --recursive --text --new-file snappy-1.2.2.orig/CMakeLists.txt snappy-1.2.2/CMakeLists.txt
---- snappy-1.2.2.orig/CMakeLists.txt	2025-04-19 23:20:48.985433149 +0200
-+++ snappy-1.2.2/CMakeLists.txt	2025-04-19 23:20:27.703912696 +0200
+--- snappy-1.2.2.orig/CMakeLists.txt    2025-04-19 23:20:48.985433149 +0200
++++ snappy-1.2.2/CMakeLists.txt    2025-04-19 23:20:27.703912696 +0200
 @@ -51,10 +51,6 @@
    string(REGEX REPLACE "/EH[a-z]+" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHs-c-")
@@ -250,17 +265,20 @@ diff --unified --recursive --text --new-file snappy-1.2.2.orig/CMakeLists.txt sn
 -  string(REGEX REPLACE "-frtti" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 -  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
  endif(MSVC)
- 
+
  # BUILD_SHARED_LIBS is a standard CMake variable, but we declare it here to make
- ```
+```
+
  Patch based on: <https://gitlab.archlinux.org/archlinux/packaging/packages/snappy/-/blob/main/snappy-reenable_rtti.patch?ref_type=heads>
- 
+
  Apply patch:
- ```bash
- patch -p1 < $CWD/snappy-reenable_rtti.patch
- ```
+
+```bash
+patch -p1 < $CWD/snappy-reenable_rtti.patch
+```
 
 The patched Snappy can then be built as follows:
+
 ```bash
 mkdir -p build
 cd build
@@ -283,8 +301,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
 #### oath-toolkit
+
 Source: <https://download.savannah.nongnu.org/releases/oath-toolkit/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/oath-toolkit>
 Build time: 50 sec
@@ -311,8 +329,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
 #### numactl
+
 Source: <https://github.com/numactl/numactl>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/numactl>
 Build time: 5 sec
@@ -336,8 +354,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
 #### lttng-ust
+
 Source: <https://lttng.org/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/lttng-ust>
 Build time: 40 sec
@@ -363,8 +381,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
 #### babeltrace
+
 Source: <https://babeltrace.org/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/babeltrace>
 Build time: 20 sec
@@ -391,8 +409,9 @@ make install DESTDIR=$PKG
 ```
 
 #### boost
-Source: <https://www.boost.org/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/boost>
+
+Source: <https://www.boost.org/> 
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/boost> 
 Build time: 10 min
 
 This package provides various C++ source libraries.  **boost** uses a build process with the b2 tool.
@@ -410,8 +429,8 @@ CXXFLAGS="$SLKCFLAGS" \
 ./b2 install
 ```
 
-
 #### thrift
+
 Source: <https://thrift.apache.org/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/thrift>
 Build time: 2 min 30 sec
@@ -443,6 +462,7 @@ make install DESTDIR=$PKG
 ```
 
 #### rabbitmq-c
+
 Source: <http://github.com/alanxz/rabbitmq-c>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rabbitmq-c>
 Build time: 5 sec
@@ -468,8 +488,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
 #### librdkafka
+
 Source: <https://github.com/confluentinc/librdkafka>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/librdkafka>
 Build time: 1 min
@@ -493,9 +513,8 @@ make -j ${BLDTHREADS:-1}
 make install DESTDIR=$PKG
 ```
 
-
-
 #### Ceph
+
 Source: <https://download.ceph.com/tarballs/>
 SlackBuild: <>
 Build time 
@@ -596,7 +615,3 @@ ARGS="-DCMAKE_INSTALL_PREFIX=/usr -DCMAKE_PREFIX_PATH=/usr -DWITH_PYTHON3=3.12 -
 cd build
 ninja
 ```
-
-
-
-
