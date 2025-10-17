@@ -58,7 +58,7 @@ diff -ruN pyo3-0.26.0/src/impl_/pymodule.rs pyo3-0.26.0-patched/src/impl_/pymodu
              // from python3.dll for Windows stable API on 3.9
 ```
 
-Patch based on: <https://git.st8l.com/luxolus/pyo3/commit/338c71d0ad10f7ae38b7b44e576d49b91ed20d99>
+Patch based on: <https://git.st8l.com/luxolus/pyo3/commit/338c71d0ad10f7ae38b7b44e576d49b91ed20d99>  
 
 Apply patch:
 
@@ -74,8 +74,8 @@ cargo build
 
 #### bcrypt (with subinterpreters patch)
 
-Source: <https://github.com/pyca/bcrypt/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/bcrypt-subint>
+Source: <https://github.com/pyca/bcrypt/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/bcrypt-subint>  
 Build time: 25 sec
 
 This package provides a hashing algorithm.  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  The patched **bcrypt** uses a Python build process using the *build module*.
@@ -88,8 +88,8 @@ pip install dist/*.whl --root=$PKG --root-user-action ignore
 
 #### cryptography (with subinterpreters patch)
 
-Source: <https://github.com/pyca/cryptography>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/cryptography-subint>
+Source: <https://github.com/pyca/cryptography>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/cryptography-subint>  
 Build time: 20 sec
 
 This package provides cryptographic "recipies and primitives."  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  A `cargo update` is required for the build system to pick up the changes.  The patched **cryptography** uses a Python build process using the *build module*.
@@ -120,8 +120,8 @@ This package provides the # library.  **#** uses a typical *cmake* build process
 
 #### rdma-core
 
-Source: <https://github.com/linux-rdma/rdma-core>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rdma-core>
+Source: <https://github.com/linux-rdma/rdma-core>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rdma-core>  
 Build time: 4 min
 
 This package provides the libiverbs library.  It is used by Ceph.  **rdma-core** uses a typical *cmake* build process.
@@ -144,8 +144,8 @@ make install DESTDIR=$PKG
 
 #### libnbd
 
-Source: <https://download.libguestfs.org/libnbd/1.22-stable/>
-SlackBuild: https://github.com/scottr131/slackbuilds/tree/main/libnbd
+Source: <https://download.libguestfs.org/libnbd/1.22-stable/>  
+SlackBuild: https://github.com/scottr131/slackbuilds/tree/main/libnbd  
 Build time: 20 sec
 
 This package provides a client library for the NBD protocol.  It is used by Ceph.  **libnbd** uses a typical *Autoconf* build process.
@@ -171,8 +171,8 @@ make install DESTDIR=$PKG
 
 #### googletest
 
-Source: <https://github.com/google/googletest>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/googletest>
+Source: <https://github.com/google/googletest>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/googletest>  
 Build time: 20 sec
 
 This package provides the Google testing and mocking framework.  It is used by Google **benchmark**.  **googletest** uses a typical *cmake* build process.
@@ -198,8 +198,8 @@ make install DESTDIR=$PKG
 
 #### benchmark
 
-Source: <https://github.com/google/benchmark>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/benchmark>
+Source: <https://github.com/google/benchmark>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/benchmark>  
 Build time: 1 min
 
 This package provides the benchmark library from Google.  It is used by **Snappy**. **benchmark ** uses a typical *cmake* build process.
@@ -233,8 +233,8 @@ cp -R * $PKG/usr/src/google-benchmark/
 
 #### snappy
 
-Source: <https://github.com/google/snappy>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/snappy-rtti>
+Source: <https://github.com/google/snappy>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/snappy-rtti>  
 Build time: 30 sec
 
 This package provides the Snappy compression library from Google.  It is used by Ceph.  **snappy** needs to be built with RTTI support for Ceph and requires a patch to enable this.  After the patch, **snappy** uses a typical *cmake* build process.
@@ -269,7 +269,7 @@ diff --unified --recursive --text --new-file snappy-1.2.2.orig/CMakeLists.txt sn
  # BUILD_SHARED_LIBS is a standard CMake variable, but we declare it here to make
 ```
 
- Patch based on: <https://gitlab.archlinux.org/archlinux/packaging/packages/snappy/-/blob/main/snappy-reenable_rtti.patch?ref_type=heads>
+ Patch based on: <https://gitlab.archlinux.org/archlinux/packaging/packages/snappy/-/blob/main/snappy-reenable_rtti.patch?ref_type=heads>  
 
  Apply patch:
 
@@ -303,8 +303,8 @@ make install DESTDIR=$PKG
 
 #### oath-toolkit
 
-Source: <https://download.savannah.nongnu.org/releases/oath-toolkit/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/oath-toolkit>
+Source: <https://download.savannah.nongnu.org/releases/oath-toolkit/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/oath-toolkit>  
 Build time: 50 sec
 
 This package provides components for one-time-password (OTP) authentication.  **oath-toolkit** uses a typical *Autoconf* build process.
@@ -331,8 +331,8 @@ make install DESTDIR=$PKG
 
 #### numactl
 
-Source: <https://github.com/numactl/numactl>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/numactl>
+Source: <https://github.com/numactl/numactl>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/numactl>  
 Build time: 5 sec
 
 This package provides NUMA policy support with the libnuma library.  It is used by Ceph. **numactl** uses a typical *Autoconf* build process.
@@ -356,8 +356,8 @@ make install DESTDIR=$PKG
 
 #### lttng-ust
 
-Source: <https://lttng.org/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/lttng-ust>
+Source: <https://lttng.org/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/lttng-ust>  
 Build time: 40 sec
 
 This package provides a library for instrumentation and tracing.  It is used by babeltrace.  **lttng-ust** uses a typical *cmake* build process.
@@ -383,8 +383,8 @@ make install DESTDIR=$PKG
 
 #### babeltrace
 
-Source: <https://babeltrace.org/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/babeltrace>
+Source: <https://babeltrace.org/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/babeltrace>  
 Build time: 20 sec
 
 This package provides the babeltrace trace read and write library.  **babeltrace** uses a typical *Autoconf* build process.
@@ -410,8 +410,8 @@ make install DESTDIR=$PKG
 
 #### boost
 
-Source: <https://www.boost.org/> 
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/boost> 
+Source: <https://www.boost.org/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/boost>  
 Build time: 10 min
 
 This package provides various C++ source libraries.  **boost** uses a build process with the b2 tool.
@@ -431,8 +431,8 @@ CXXFLAGS="$SLKCFLAGS" \
 
 #### thrift
 
-Source: <https://thrift.apache.org/>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/thrift>
+Source: <https://thrift.apache.org/>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/thrift>  
 Build time: 2 min 30 sec
 
 This package provides the the Apache Thrift library for point-to-point RPC communications.  **thrift** needs its `bootstrap.sh` run first, and then uses a typical *Automake* build process.
@@ -463,8 +463,8 @@ make install DESTDIR=$PKG
 
 #### rabbitmq-c
 
-Source: <http://github.com/alanxz/rabbitmq-c>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rabbitmq-c>
+Source: <http://github.com/alanxz/rabbitmq-c>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/rabbitmq-c>  
 Build time: 5 sec
 
 This package provides a C AMQP library for use with RabbitMQ.  **rabbitmq-c** uses a typical *cmake* build process.
@@ -490,8 +490,8 @@ make install DESTDIR=$PKG
 
 #### librdkafka
 
-Source: <https://github.com/confluentinc/librdkafka>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/librdkafka>
+Source: <https://github.com/confluentinc/librdkafka>  
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/librdkafka>  
 Build time: 1 min
 
 This package provides a C implementation of the Apache Kafka Producer, Consumer, and Admin clients.  It is used by Ceph  **librdkafka** uses a typical *Automake* build process.
@@ -515,7 +515,7 @@ make install DESTDIR=$PKG
 
 #### Ceph
 
-Source: <https://download.ceph.com/tarballs/>
+Source: <https://download.ceph.com/tarballs/>  
 SlackBuild: <>
 Build time 
 
