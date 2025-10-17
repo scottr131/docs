@@ -28,7 +28,7 @@ Build time: 20 sec
 
 This package provides Rust bindings in Python.  It is patched to allow its use in Python sub-interpreters if the `unsafe-allow-subinterpreters` feature is requested.  This is required by bcrypt and cryptography for use with Ceph.  This does not need to be packaged, just installed on the build system.
 
-```
+```diff
 diff -ruN pyo3-0.26.0/Cargo.toml pyo3-0.26.0-patched/Cargo.toml
 --- pyo3-0.26.0/Cargo.toml    2025-08-29 08:43:50.000000000 -0400
 +++ pyo3-0.26.0-patched/Cargo.toml    2025-09-13 15:05:13.285000000 -0400
@@ -78,7 +78,24 @@ Source: <https://github.com/pyca/bcrypt/>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/bcrypt-subint>  
 Build time: 25 sec
 
-This package provides a hashing algorithm.  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  The patched **bcrypt** uses a Python build process using the *build module*.
+This package provides a hashing algorithm.  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  
+
+```diff
+diff -ruN bcrypt-4.3.0/src/_bcrypt/Cargo.toml bcrypt-4.3.0-patched/src/_bcrypt/Cargo.toml
+--- bcrypt-4.3.0/src/_bcrypt/Cargo.toml    2025-02-27 20:17:02.000000000 -0500
++++ bcrypt-4.3.0-patched/src/_bcrypt/Cargo.toml    2025-09-13 15:29:52.475000000 -0400
+@@ -6,7 +6,7 @@
+ publish = false
+
+ [dependencies]
+-pyo3 = { version = "0.23.5", features = ["abi3"] }
++pyo3 = { version = "0.26", features = ["abi3", "unsafe-allow-subinterpreters" ], path="/tmp/SBo/pyo3-0.26.0-subint" }
+ bcrypt = "0.17"
+ bcrypt-pbkdf = "0.10.0"
+ base64 = "0.22.1"
+```
+
+The patched **bcrypt** uses a Python build process using the *build module*.
 
 ```bash
 patch -p1 < $CWD/bcrypt-4.3.0-subinterpreters.patch
@@ -92,7 +109,25 @@ Source: <https://github.com/pyca/cryptography>
 SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/cryptography-subint>  
 Build time: 20 sec
 
-This package provides cryptographic "recipies and primitives."  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  A `cargo update` is required for the build system to pick up the changes.  The patched **cryptography** uses a Python build process using the *build module*.
+This package provides cryptographic "recipies and primitives."  It is patched to request the `unsafe-allow-subinterpreters` feature from pyo3 to allow use in Python subinterpreters.  A `cargo update` is required for the build system to pick up the changes.  
+
+```diff
+diff -ruN cryptography-45.0.7/Cargo.toml cryptography-45.0.7-subint/Cargo.toml
+--- cryptography-45.0.7/Cargo.toml    2025-09-01 07:05:40.000000000 -0400
++++ cryptography-45.0.7-subint/Cargo.toml    2025-09-15 18:19:01.779000000 -0400
+@@ -22,8 +22,8 @@
+
+ [workspace.dependencies]
+ asn1 = { version = "0.21.3", default-features = false }
+-pyo3 = { version = "0.25", features = ["abi3"] }
+-pyo3-build-config = { version = "0.25" }
++pyo3 = { version = "0.26", features = ["abi3", "unsafe-allow-subinterpreters" ], path="/tmp/SBo/pyo3-0.26.0-subint" }
++pyo3-build-config = { version = "0.26", path="/tmp/SBo/pyo3-0.26.0-subint/pyo3-build-config" }
+ openssl = "0.10.72"
+ openssl-sys = "0.9.108"
+```
+
+The patched **cryptography** uses a Python build process using the *build module*.
 
 ```bash
 patch -p1 < $CWD/cryptography-45.0.7-subinterpreters.patch
@@ -523,7 +558,7 @@ This is the entire Ceph system.  It looks like it requires around 16GB of RAM to
 
 Ceph will need patched to allow the version CMake that ships with Slackware-current to build some components. 
 
-```
+```diff
 diff -ruN ceph-orig/cmake/modules/BuildArrow.cmake ceph-cmake/cmake/modules/BuildArrow.cmake
 --- ceph-orig/cmake/modules/BuildArrow.cmake    2025-09-04 15:35:40.000000000 -0400
 +++ ceph-cmake/cmake/modules/BuildArrow.cmake   2025-09-16 00:37:56.621000000 -0400
