@@ -1,3 +1,7 @@
+# Build Software
+
+Slackware packages are not readily available, so they will need to be built from source.  I have created [SlackBuilds scripts](https://github.com/scottr131/slackbuilds) for the components.  In addition, I have [documented](https://github.com/scottr131/docs/blob/main/ceph-on-slackware/build-ceph-on-slackware.md) the build process.
+
 # Time Synchronization
 
 As with any cluster software, time synchronization is critical.  Make sure NTP is enabled and configured to use the same NTP server as the other nodes.

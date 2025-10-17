@@ -22,8 +22,8 @@ sudo pip install tox
 
 #### pyo3 (with subinterpreters patch)
 
-Source: <https://github.com/PyO3/pyo3>
-SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/pyo3-subint>
+Source: <https://github.com/PyO3/pyo3> 
+SlackBuild: <https://github.com/scottr131/slackbuilds/tree/main/pyo3-subint> 
 Build time: 20 sec
 
 This package provides Rust bindings in Python.  It is patched to allow its use in Python sub-interpreters if the `unsafe-allow-subinterpreters` feature is requested.  This is required by bcrypt and cryptography for use with Ceph.  This does not need to be packaged, just installed on the build system.
