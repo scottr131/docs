@@ -12,6 +12,8 @@ Remove GCC Go.  It seems to cause nothing but problems, and I can't find a situa
 sudo removepkg gcc-go-15.2.0-x86_64-1
 ```
 
+7zip is needed during build.  Install the binary and make sure it is called 7z and in the path.
+
 ## Build Third Party Supporting Software
 
 ### etcd
