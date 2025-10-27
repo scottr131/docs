@@ -2,11 +2,11 @@
 
 ## Hyperconverged
 
-The cluster consists of 3 PCs with dual-port 10Gb ethernet network adapters.  The exact model doesn't matter too much - the PCs in this example are older HP small desktops with 6th Gen Intel Core i3 CPUs and 16GiB of RAM.  The important part is that the motherboard and CPU support hardware virtualization and IOMMU.  (Actually, IOMMU is not really a strict requirement.)  Each PC has a 256GB NVMe and a 500GB SATA SSD.  These are not super powerful machines but they should allow some VMs and containers to run for testing.
+The cluster consists of 3 PCs with dual port 10Gb ethernet network adapters.  The exact model doesn't matter too much - the PCs in this example are older HP small desktops with 6th Gen Intel Core i3 CPUs and 16GiB of RAM.  The important part is that the motherboard and CPU support hardware virtualization and IOMMU.  (Actually, IOMMU is not really a strict requirement.)  Each PC has a 256GB NVMe and a 500GB SATA SSD.  These are not super powerful machines, but they should allow some VMs and containers to run for testing.
 
-The networking is set up in a way that elimiantes the need for a 10GbE switch and allows for the use of cheaper DAC cables.  Each PC has three network interfaces - the internal gigabit ethernet adapter and the dual port 10Gb ethernet card that appears as two network adapters to the OS.  
-The gigabit adapters connect to a network switch to allow management of the node as well connect the node to outside world.  VLAN traffic isolation can be implemented here, which would require a managed swtich.  For testing purposes with no traffic isolation an unmanaged switch works fine.  For the purposes of this document this is called the "management LAN."
-The 10Gb ethernet adapters are linked to each other directly with DAC cables.  Each node is connected to the other two nodes - forming a triangle arrangement.  The interfaces are not automatically configured so it is important the DAC cables are connected to right ports.  PC 1 port 1 goes to PC 2 port 2 - this is link 1.  PC 2 port 1 goes to PC 3 port 1 - this is link 2.  PC 3 port 2 goes to PC 1 port 2 - this is link 3.  For the purposes of this document the combination of these links is called the "cluster LAN."
+The networking is set up in a way that eliminates the need for a 10GbE switch and allows for the use of cheaper DAC cables.  Each PC has three network interfaces - the internal gigabit ethernet adapter and the dual port 10Gb ethernet card that appears as two network adapters to the OS.  
+The gigabit adapters connect to a network switch to allow management of the node as well connect the node to outside world.  VLAN traffic isolation can be implemented here, which would require a managed switch.  For testing purposes with no traffic isolation an unmanaged switch works fine.  For the purposes of this document this is called the "management LAN."
+The 10Gb ethernet adapters are linked to each other directly with DAC cables.  Each node is connected to the other two nodes - forming a triangle arrangement.  The interfaces are not automatically configured so it is important that the DAC cables are connected to right ports.  PC 1 port 1 goes to PC 2 port 2 - this is link 1.  PC 2 port 1 goes to PC 3 port 1 - this is link 2.  PC 3 port 2 goes to PC 1 port 2 - this is link 3.  For the purposes of this document the combination of these links is called the "cluster LAN."
 
 ## Node Software
 
@@ -16,7 +16,7 @@ The nodes will run Slackware Linux.  I chose this because I'm comfortable with t
 
 ### Lower Routing Layer (FRRouting)
 
-Since the high speed network consists of three independent links, we need a way to join those together.  There are several ways to do this, this may not be the best way.  This cluster will use FRRouting with IP forwarding on the nodes to give each node a stable IP address with a redundant path in case of a link failure.
+Since the high-speed network consists of three independent links, we need a way to join those together.  There are several ways to do this, this may not be the best way.  This cluster will use FRRouting with IP forwarding on the nodes to give each node a stable IP address with a redundant path in case of a link failure.
 
 ### Hypervisor Layer (Qemu / KVM / LXC)
 
@@ -24,7 +24,7 @@ Standard Linux KVM will provide the hypervisor with Qemu filling out the rest of
 
 ### Software Defined Networking (SDN) Layer (Open vSwitch / OVN)
 
-Virtual machines and containers can be bridged to the management LAN, but for more flexibility, the cluster will provide software defined networks.  This networking layer is provided via OVN that runs on top Open vSwitch.  This SDN layer then operates on top of the 'Lower Routing Layer' mentioned earlier.
+Virtual machines and containers can be bridged to the management LAN, but for more flexibility, the cluster will provide software-defined networks.  This networking layer is provided via OVN that runs on top Open vSwitch.  This SDN layer then operates on top of the 'Lower Routing Layer' mentioned earlier.
 
 ### Distributed Storage Layer (Ceph)
 
@@ -36,7 +36,7 @@ Incus will be used to manage all these components.  Incus can run VMs using QEMU
 
 ### Monitoring Layer (Zabbix)
 
-With 3 nodes and multiple VMs it is important to monitor what's going on.  The Zabbix server will run on a virtual machine and mointor an agent that runs on each cluster member (VM or hardware).
+With 3 nodes and multiple VMs it is important to monitor what's going on.  The Zabbix server will run on a virtual machine and monitor an agent that runs on each cluster member (VM or hardware).
 
 ## Node Software Installation
 
@@ -61,7 +61,7 @@ The first partition is used for UEFI, the second partition is the Slackware root
 #### Slackware Software Sets
 
 I’ll only install software sets A, AP, L, N, TCL, and X. I’m not sure I’ll need X, but a minimal GUI on these systems may be useful later.  Since we're not installing the D software set, there are a couple of things we need to do.
-Without the D software set, the system doesn't have Python or Perl.  Some of Slackware scripts (especially related to certificate management) assume Perl is available, so the easiest approach is to install it.  In addition, some of the software components are in Python - so we need to make sure Python is available.  Let's go ahead and manually install these pacakges from the D set.
+Without the D software set, the system doesn't have Python or Perl.  Some of Slackware scripts (especially related to certificate management) assume Perl is available, so the easiest approach is to install it.  In addition, some of the software components are in Python - so we need to make sure Python is available.  Let's go ahead and manually install these packages from the D set.
 
 ```sh
 installpkg perl-5.42.0-x86_64-1.txz
@@ -130,7 +130,7 @@ PasswordAuthentication no
 
 #### Sudo
 
-Finally we need to stop using the root account as much as possible, so let's make sure sudo is configured.  Using `visudo`, uncommenting the line that allows for the `wheel` group to have sudo access.  In addition, if for some reason you have additional packages installed in /opt that need to run as root, you can add that path here.
+Finally, we need to stop using the root account as much as possible, so let's make sure sudo is configured.  Using `visudo`, uncommenting the line that allows for the `wheel` group to have sudo access.  In addition, if for some reason you have additional packages installed in /opt that need to run as root, you can add that path here.
 
 ```text
 # Around line 51
@@ -139,8 +139,10 @@ Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/b
 %wheel ALL=(ALL:ALL) NOPASSWD: ALL
 ```
 
+The rest of this document assumes you are logged in as a regular user (clusteradm) and will run root commands with sudo.
 
 ### Startup Scripts
+
 I have created a set of startup scripts and configuration files for the various pieces of software used here.  There aren't currently included with my SlackBuilds packages, so install them from GitHub now.  I have more scripts on GitHub than we need here, so I'll only copy the ones needed.  Make sure the scripts aren't set executable because most of the services are not configured yet.
 
 ```sh
@@ -148,39 +150,39 @@ git clone https://github.com/scottr131/linux --depth=1
 chmod -x linux/slackware/etc/rc.d/*
 
 # FRRouting
-cp linux/slackware/etc/default/frr /etc/default/
-cp linux/slackware/etc/rc.d/rc.frr /etc/rc.d/
+sudo cp linux/slackware/etc/default/frr /etc/default/
+sudo cp linux/slackware/etc/rc.d/rc.frr /etc/rc.d/
 
 # OVN / OVS 
-cp linux/slackware/etc/default /etc/default/
-cp linux/slackware/etc/rc.d/rc.openvswitch \
-	linux/slackware/etc/rc.d/rc.ovn-central \
+sudo cp linux/slackware/etc/default /etc/default/
+sudo cp linux/slackware/etc/rc.d/rc.openvswitch \
+    linux/slackware/etc/rc.d/rc.ovn-central \
     linux/slackware/etc/rc.d/rc.ovn-host \
     /etc/rc.d/
 
 # Ceph
-cp linux/slackware/etc/default/ceph \
-	linux/slackware/etc/default/ceph-mgr \
+sudo cp linux/slackware/etc/default/ceph \
+    linux/slackware/etc/default/ceph-mgr \
     linux/slackware/etc/default/ceph-mon \
-	linux/slackware/etc/default/ceph-osd \
+    linux/slackware/etc/default/ceph-osd \
     /etc/rc.d/
 # Need MDS RGW
-cp linux/slackware/etc/rc.d/rc.ceph-mgr \
-	linux/slackware/etc/rc.d/rc.ceph-mon \
+sudo cp linux/slackware/etc/rc.d/rc.ceph-mgr \
+    linux/slackware/etc/rc.d/rc.ceph-mon \
     linux/slackware/etc/rc.d/rc.ceph-osd \
     /etc/rc.d/
 # Need MDS RGW
 
 # Incus
-cp linux/slackware/etc/default/incus /etc/default/
-cp linux/slackware/etc/rc.d/rc.incusd /etc/rc.d/
+sudo cp linux/slackware/etc/default/incus /etc/default/
+sudo cp linux/slackware/etc/rc.d/rc.incusd /etc/rc.d/
 
 # Zabbix
-cp linux/slackware/etc/default/zabbix-server \
-	linux/slackware/etc/default/zabbix-agent \
+sudo cp linux/slackware/etc/default/zabbix-server \
+    linux/slackware/etc/default/zabbix-agent \
     /etc/default/
-cp linux/slackware/etc/rc.d/rc.zabbix-server \
-	linux/slackware/etc/rc.d/rc.zabbix-agent \
+sudo cp linux/slackware/etc/rc.d/rc.zabbix-server \
+    linux/slackware/etc/rc.d/rc.zabbix-agent \
     /etc/rc.d/
 ```
 
@@ -189,28 +191,111 @@ cp linux/slackware/etc/rc.d/rc.zabbix-server \
 FRRouting only has a couple dependencies - protobuf-c and libyang.  I have SlackBuilds packages for these that can be installed.
 
 ```sh
-installpkg protobuf-c-1.5.2-x86_64-1_SBo.txz \
-	libyang-3.13.5-x86_64-1_SBo.txz \
+sudo installpkg protobuf-c-1.5.2-x86_64-1_SBo.txz \
+    libyang-3.13.5-x86_64-1_SBo.txz \
     frr-10.4.1-x86_64-1_SBo.txz
 ```
 
 ### Open vSwitch / OVN
+
 OVN and Open vSwitch work together so let's install them together.  If FRR is installed, the system should already had protobuf-c and libyang, but I have included those here as well as they are needed by OVN.
 
 ```sh
-installpkg openvswitch-3.6.0-x86_64-1_SBo.txz \
-	ovn-25.03.1-x86_64-1_SBo \
-	libyang-3.13.5-x86_64-1_SBo.txz \
+sudo installpkg openvswitch-3.6.0-x86_64-1_SBo.txz \
+    ovn-25.03.1-x86_64-1_SBo \
+    libyang-3.13.5-x86_64-1_SBo.txz \
     protobuf-c-1.5.2-x86_64-1_SBo.txz
 ```
 
 ### Ceph
+
 Ceph is a complex piece of software, so it has a lot of dependencies that need to be installed.  First, some additional packages from the D software set are required.
 
 ```sh
 # GNU Fortran library, Required by SciPy
-installpkg gcc-gfortran-15.2.0-x86_64-1.txz
+sudo installpkg gcc-gfortran-15.2.0-x86_64-1.txz
 # LUA library, Required by RADOSGW
-installpkg lua-5.4.8-x86_64-1.txz
+sudo installpkg lua-5.4.8-x86_64-1.txz
 ```
 
+Now we need to install some support packages.  These are built from my SlackBuilds scripts available on GitHub, so I won't document that process here.
+
+```sh
+sudo installpkg rdma-core-59.0-x86_64-1_SBo.txz \
+    libnbd-1.22.4-x86_64-1_SBo.txz \
+    googletest-1.17.0-x86_64-1_SBo.txz \
+    benchmark-1.9.4-x86_64-1_SBo.txz \
+    snappy-1.2.2-x86_64-1_SBo.txz \
+    oath-toolkit-2.6.13-x86_64-1_SBo.txz \
+    numactl-2.0.19-x86_64-1_SBo.txz \
+    lttng-ust-2.14.0-x86_64-1_SBo.txz \
+    babeltrace-1.5.11-x86_64-1_SBo.txz \
+    boost-1.89.0-x86_64-1_SBo.txz \
+    thrift-0.22.0-x86_64-1_SBo.txz \
+    rabbitmq-c-0.15.0-x86_64-1_SBo.txz \
+    librdkafka-2.11.1-x86_64-1_SBo.txz \
+    bcrypt-4.3.0-x86_64-1_SBo-subint.txz \
+    cryptography-45.0.7-x86_64-1_SBo-subint.txz
+```
+
+There are also some Python packages required that are not currently packaged as Slackware packages. These will get packaged later. For now, install these from pip.  Pip will give you a warning, but in this case, we do want to install these packages as root for system-wide use.
+
+```sh
+sudo pip install scipy cherrypy jsonpatch python-dateutil prettytable jmespath xmltodict pyOpenSSL Routes
+```
+
+Ceph needs a group, a user, and some directories created for its use.  This will probably become part of a script in my SlackBuild package, but it's currently not so it has to be done manually.
+
+```sh
+## Create Ceph user (ceph)
+groupadd -r ceph
+useradd --system -g ceph -c "Ceph" -m -d /home/ceph ceph
+# Create Ceph directories
+mkdir -p /etc/ceph
+mkdir -p /var/lib/ceph
+mkdir -p /var/log/ceph
+mkdir -p /var/run/ceph
+# Make sure ceph user owns the /var directories
+chown -R ceph:ceph /var/lib/ceph
+chown -R ceph:ceph /var/log/ceph
+chown -R ceph:ceph /var/run/ceph
+```
+
+### QEMU
+
+QEMU is required by Incus if we want Incus to run VMs in addition to containers.  QEMU should be compiled on a system with the Ceph libraries installed so that QEMU is built with Ceph support.  While not directly a part of QEMU, let's go ahead and install swtpm at this time to provide software TPM emulation.
+
+```sh
+installpkg libblkio-v1.5.0-x86_64-1_SBo.txz \
+    libiscsi-1.20.3-x86_64-1_SBo.txz \
+    numactl-2.0.19-x86_64-1_SBo.txz \
+    spice-protocol-0.14.5-x86_64-1_SBo.txz \
+    spice-0.16.0-x86_64-1_SBo.txz \
+    usbredir-0.15.0-x86_64-1_SBo.txz \
+    qemu-10.1.0-x86_64-1_SBo.txz \
+    swtpm-0.10.1-x86_64-1_SBo.txz \
+    libtpms-0.10.1-x86_64-1_SBo.txz
+```
+
+### Incus
+
+Incus only really depends on cowsql and raft for its internal replicated database.  It can make use of many of the components that were just installed above.  It can also use a utility called `skopeo` to convert Docker-style (OCI) containers into a form that Incus can run.  Those can be installed now.
+
+```sh
+installpkg raft-0.22.1-x86_64-1_SBo.txz \
+    cowsql-1.15.9-x86_64-1_SBo.txz \
+    incus-6.17-x86_64-1_SBo.txz \
+    skopeo-1.20.0-x86_64-1_SBo.txz
+```
+
+### Zabbix
+
+Zabbix consists of the monitoring server and the agent that does the monitoring.  Only the Zabbix server VM will need the server component installed.  All cluster nodes, Ceph nodes, and the Zabbix server VM itself need the Zabbix agent installed for monitoring.
+
+```sh
+# Zabbix Slackbuild not yet complete
+```
+
+```sh
+# Zabbix server install process work in progress
+```
