@@ -12,7 +12,7 @@ My process for building a fully hyperconverged (compute, storage, network) clust
 
 My experience building, installing, and configuring Ceph on Slackware Linux.
 
-Building Ceph 20.1.0 and its depdendencies:
+Building Ceph 20.1.0 and its dependencies:
 [Build Ceph on Slackware](https://github.com/scottr131/docs/blob/main/ceph-on-slackware/build-ceph-on-slackware.md)
 
 Configuring Ceph for MON, MGR, OSD, MDS, RGW.
@@ -30,7 +30,7 @@ Installation and Configuration:
 
 ## Kubernetes on Slackware
 
-Sometimes the workload calls for a different type of cluster.  While I consider this project in-progress, it works.  I documented the process of building the Kubernetes dependencies of components on Slackware, and then using those packages to create a vanilla K8s cluster.
+Sometimes the workload calls for a different type of cluster.  While I consider this project in-progress, it works.  I documented the process of building the Kubernetes dependencies of components on Slackware and then using those packages to create a vanilla K8s cluster.
 
 Building Kubernetes (last tested with 1.34.1)
 [Building Kubernetes on Slackware](https://github.com/scottr131/docs/blob/main/kubernetes-on-slackware/building-kubernetes-on-slackware.md)
@@ -40,13 +40,13 @@ Create Kubernetes Cluster on Slackware
 
 ## Windows on KVM
 
-This documents my process for creating a Windows PE ISO that has support for virtio devices.  This ISO can be used to install Windows in virtualization environments that use KVM.  I may add other documents in the future related for Windows running under the KVM hypervisor.
+This documents my process for creating a Windows PE ISO that has support for virtio devices.  This ISO can be used to install Windows in virtualization environments that use KVM.  I may add other documents in the future related to Windows running under the KVM hypervisor.
 
 [Windows PE on KVM](https://github.com/scottr131/docs/blob/main/windows-on-kvm/winpe-for-kvm.md)
 
 ## Incus Cluster on Slackware
 
-The process for a different Incus cluster I built.  This cluster uses Ansible for deployment of the cluster software onto emtpy Slackware nodes.  This cluster also uses a combination of LINSTOR, DRBD, and LVM for its cluster storage instead of Ceph.
+The process for a different Incus cluster I built.  This cluster uses Ansible for deployment of the cluster software onto empty Slackware nodes.  This cluster also uses a combination of LINSTOR, DRBD, and LVM for its cluster storage instead of Ceph.
 
 [Incus Cluster On Slackware](https://github.com/scottr131/docs/blob/main/incus-on-slackware/incus-cluster-on-slackware.md)
 
