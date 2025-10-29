@@ -128,14 +128,22 @@ By default, Slackware allows non-root users to log in via SSH with simple passwo
 PasswordAuthentication no
 ```
 
+#### cgroups
+
+Slackware ships with cgroups version 1.  Let's switch that to version 2 for Incus.  Edit the file `/etc/default/cgroups`.
+
+```text
+CGROUPS_VERSION=2
+```
+
 #### Sudo
 
 Finally, we need to stop using the root account as much as possible, so let's make sure sudo is configured.  Using `visudo`, uncommenting the line that allows for the `wheel` group to have sudo access.  In addition, if for some reason you have additional packages installed in /opt that need to run as root, you can add that path here.
 
 ```text
-# Around line 51
+# ... usually around line 51
 Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-# Around line 128 - remove # from below
+# ... usually around line 128 - remove # from line
 %wheel ALL=(ALL:ALL) NOPASSWD: ALL
 ```
 
@@ -148,6 +156,11 @@ I have created a set of startup scripts and configuration files for the various 
 ```sh
 git clone https://github.com/scottr131/linux --depth=1
 chmod -x linux/slackware/etc/rc.d/*
+
+# System Configuration
+sudo cp linux/slackware/etc/rc.d/rc.local /etc/rc.d/
+sudo cp linux/slackware/etc/rc.d/rc.local_shutdown /etc/rc.d/
+sudo cp linux/slackware/etc/rc.d/rc.inet3 /etc/rc.d/
 
 # FRRouting
 sudo cp linux/slackware/etc/default/frr /etc/default/
@@ -298,4 +311,215 @@ Zabbix consists of the monitoring server and the agent that does the monitoring.
 
 ```sh
 # Zabbix server install process work in progress
+```
+
+## Node Software Configuration
+
+### Cluster LAN Configuration
+
+Each 10-gigabit ethernet link will need configured with static IP addresses.  Since these are point-to-point links let's use /30 subnets.  Edit /etc/rc.d/rc.inet1.conf and /etc/rc.d/rc.inet3 on each node.  /etc/rc.d/rc.inet3 is called by my /etc/rc.d/rc.local to provide any additional network configuration that's not easily done in the rc.inet1.conf file.  In this case, rc.inet3 is used to add a stable IP address to loopback interface.  This gives FRRouting an IP to advertise that's not tied to an interface that may go down.
+
+#### node1
+
+/etc/rc.d/rc.inet1.conf
+
+```text
+# ... usually around line 33 ...
+# IPv4 config options for eth1:
+IPADDRS[1]="192.168.11.1/30"
+# --- usually around line 42
+IPADDRS[2]="192.168.33.2/24"
+```
+
+/etc/rc.d/rc.inet3
+
+```text
+ip addr add 10.50.1.1/32 dev lo
+```
+
+#### node 2
+
+/etc/rc.d/rc.inet1.conf
+
+```text
+# ... usually around line 33 ...
+# IPv4 config options for eth1:
+IPADDRS[1]="192.168.22.1/30"
+# --- usually around line 42
+IPADDRS[2]="192.168.11.2/24"
+```
+
+/etc/rc.d/rc.inet3
+
+```text
+ip addr add 10.50.1.2/32 dev lo
+```
+
+#### node3
+
+/etc/rc.d/rc.inet1.conf
+
+```text
+# ... usually around line 33 ...
+# IPv4 config options for eth1:
+IPADDRS[1]="192.168.33.1/30"
+# --- usually around line 42
+IPADDRS[2]="192.168.22.2/24"
+```
+
+/etc/rc.d/rc.inet3
+
+```text
+ip addr add 10.50.1.3/32 dev lo
+```
+
+Restart the interfaces.  Repeat on each node after changing the configuration.
+
+```sh
+sudo /etc/rc.d/rc.inet1 eth1_restart
+sudo /etc/rc.d/rc.inet1 eth2_restart
+sudo /etc/rc.d/rc.inet3
+```
+
+### FRRouting Configuration
+
+FRR needs to be configured on each node.  We'll have FRR advertise the links via OSPF as well as stable IP address for the host.  In addition to the host's stable IP, let's go ahead and set up routing for a stable IP that will be used with the OSD VM on the node.  Incus will create a kernel route for the VM, so configure FRR to advertise that particular kernel route via a route map.
+
+#### node1
+
+Edit /etc/frr/frr.conf - this will get loaded when FRR starts.
+
+```text
+frr version 10.4.1
+frr defaults traditional
+hostname node1.cluster.local
+service integrated-vtysh-config
+!
+ip prefix-list VM-ROUTE seq 10 permit 10.50.1.11/32
+!
+route-map REDIST-KERNEL permit 10
+ match ip address prefix-list VM-ROUTE
+exit
+!
+interface eth1
+ ip ospf network point-to-point
+exit
+!
+interface eth2
+ ip ospf network point-to-point
+exit
+!
+interface vxlan0
+ ip ospf passive
+exit
+!
+router ospf
+ ospf router-id 10.50.1.1
+ redistribute kernel route-map REDIST-KERNEL
+ network 192.168.11.0/24 area 0
+ network 192.168.33.0/24 area 0
+ network 10.50.1.1/32 area 0
+exit
+!
+```
+
+#### node2
+
+Edit /etc/frr/frr.conf - this will get loaded when FRR starts.
+
+```text
+frr version 10.4.1
+frr defaults traditional
+hostname node2.cluster.local
+service integrated-vtysh-config
+!
+ip prefix-list VM-ROUTE seq 10 permit 10.50.1.12/32
+!
+route-map REDIST-KERNEL permit 10
+ match ip address prefix-list VM-ROUTE
+exit
+!
+interface eth1
+ ip ospf network point-to-point
+exit
+!
+interface eth2
+ ip ospf network point-to-point
+exit
+!
+interface vxlan0
+ ip ospf passive
+exit
+!
+router ospf
+ ospf router-id 10.50.1.2
+ redistribute kernel route-map REDIST-KERNEL
+ network 192.168.11.0/24 area 0
+ network 192.168.22.0/24 area 0
+ network 10.50.1.1/32 area 0
+exit
+!
+```
+
+# node3
+
+Edit /etc/frr/frr.conf - this will get loaded when FRR starts.
+
+```text
+frr version 10.4.1
+frr defaults traditional
+hostname node2.cluster.local
+service integrated-vtysh-config
+!
+ip prefix-list VM-ROUTE seq 10 permit 10.50.1.13/32
+!
+route-map REDIST-KERNEL permit 10
+ match ip address prefix-list VM-ROUTE
+exit
+!
+interface eth1
+ ip ospf network point-to-point
+exit
+!
+interface eth2
+ ip ospf network point-to-point
+exit
+!
+interface vxlan0
+ ip ospf passive
+exit
+!
+router ospf
+ ospf router-id 10.50.1.3
+ redistribute kernel route-map REDIST-KERNEL
+ network 192.168.22.0/24 area 0
+ network 192.168.33.0/24 area 0
+ network 10.50.1.1/32 area 0
+exit
+!
+```
+
+#### All nodes
+
+First, edit the FRR daemon configuration to make sure that OSPF is enabled.
+
+/etc/frr/daemons
+
+```text
+# ... usually around line 18 ...
+ospfd=yes
+```
+
+Next, enable and start FRRouting.
+
+```sh
+sudo chmod +x /etc/rc.d/rc.frr
+sudo /etc/rc.d/rc.frr start
+```
+
+OSPF should determine the best routes and advertise the routes.  This can be checked by looking for OSPF neighbors and looking for OSPF routes in the routing table.
+
+```sh
+sudo vtysh -c "show ip ospf neighbor"
+sudo vtysh -c "show ip route"
 ```
