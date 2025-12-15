@@ -135,7 +135,7 @@ Slackbuild scripts are designed to run as root.  In this case, my Makefile calls
 ```
 visudo
 ## around line 51, modify this line
-Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/java17/bin"
+Defaults secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/java17/bin:/opt/go/bin"
 ```
 
 ### Start Jenkins
@@ -163,7 +163,7 @@ java -Xmx4g -jar rundeck-5.17.0-SNAPSHOT.war
 When the following message appears, Rundeck has completed the initialization.  Press Ctrl+C to exit Rundeck.
 
 ```
-Grails application running at http://ecto1.local:4440 in environment: production
+Grails application running at http://localhost:4440 in environment: production
 ```
 Now we need to add the Rundeck binaries and man pages to the path.
 ```
@@ -175,6 +175,71 @@ Then we can restart Rundeck.  Do this in a tmux session so you can disconnect an
 java -Xmx4g -jar rundeck-5.17.0-SNAPSHOT.war
 ```
 
+## Rundeck 
+
+### Add Inventory
+Create a nodes.yaml for Rundeck to use as its inventory.
+```
+localhost:
+  nodename: localhost
+  hostname: localhost
+  description: Rundeck server node
+  tags: ''
+tnode3:
+  nodename: tnode3
+  hostname: tnode3.i131.net
+  tags: clusternode
+tnode2:
+  nodename: tnode2
+  hostname: tnode2.i131.net
+  tags: clusternode
+tnode1:
+  nodename: tnode1
+  hostname: tnode1.i131.net
+  tags: clusternode
+```
+### Prepare Jobs
+
+### Pull Config Files from GitHub
+
+### Populate Ansible Files
+```
+# LINSTOR
+mkdir -p ~/ansible/linstor/rc.d
+mkdir -p ~/ansible/linstor/default
+cp ~/linux/slackware/etc/rc.d/rc.linstor-satellite ~/ansible/linstor/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.linstor-controller ~/ansible/linstor/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.zfs ~/ansible/linstor/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.drbd ~/ansible/linstor/rc.d/
+cp ~/linux/slackware/etc/default/linstor-satellite ~/ansible/linstor/default/
+cp ~/linux/slackware/etc/default/linstor-controller ~/ansible/linstor/default/
+cp ~/linux/slackware/etc/default/zfs ~/ansible/linstor/default/
+
+
+# Incus
+mkdir -p ~/ansible/incus/rc.d
+mkdir -p ~/ansible/incus/default
+cp ~/linux/slackware/etc/rc.d/rc.incusd ~/ansible/incus/rc.d/
+cp ~/linux/slackware/etc/default/incus ~/ansible/incus/default/
+
+
+# Local
+mkdir -p ~/ansible/local-config/rc.d
+mkdir -p ~/ansible/local-config/default
+cp ~/linux/slackware/etc/rc.d/rc.local ~/ansible/local-config/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.local_shutdown ~/ansible/local-config/rc.d/
+
+
+# OVN/Open vSwitch
+mkdir -p ~/ansible/ovn/rc.d
+mkdir -p ~/ansible/ovn/default
+cp ~/linux/slackware/etc/rc.d/rc.openvswitch ~/ansible/ovn/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.ovn-central ~/ansible/ovn/rc.d/
+cp ~/linux/slackware/etc/rc.d/rc.ovn-host ~/ansible/ovn/rc.d/
+cp ~/linux/slackware/etc/default/openvswitch ~/ansible/ovn/default/
+cp ~/linux/slackware/etc/default/ovn-central ~/ansible/ovn/default/
+cp ~/linux/slackware/etc/default/ovn-host ~/ansible/ovn/default/
+```
 
 
 
